@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Defensive Privacy Guide — EDFP</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{--bg:#060d1a;--surface:#0b1525;--card:#0d1a2d;--border:#142030;--accent:#38bdf8;--warn:#facc15;--danger:#ef4444;--success:#34d399;--muted:#4a6080;--text:#c8ddf0;}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+    .mono{font-family:'JetBrains Mono',monospace;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:6px;}
+    .label-xs{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+    .btn{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:var(--accent);padding:6px 14px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;transition:all .2s;text-decoration:none;display:inline-block;}
+    .btn:hover{background:rgba(56,189,248,.2);}
+    .urgency-CRITICAL{border-left-color:#ef4444;background:rgba(239,68,68,.06);}
+    .urgency-HIGH{border-left-color:#facc15;background:rgba(250,204,21,.05);}
+    .urgency-MEDIUM{border-left-color:#38bdf8;background:rgba(56,189,248,.05);}
+    .tip-critical{border-color:rgba(239,68,68,.3);}
+    .tip-high{border-color:rgba(250,204,21,.3);}
+    .tip-medium{border-color:rgba(56,189,248,.3);}
+    details summary{cursor:pointer;list-style:none;}
+    details summary::-webkit-details-marker{display:none;}
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-track{background:var(--bg);}
+    ::-webkit-scrollbar-thumb{background:var(--border);}
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Nav -->
+<div style="background:#0b1525;border-bottom:1px solid #142030;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:1.1rem;">🛡</span>
+    <span class="label-xs" style="font-size:.75rem;color:#34d399;">DEFENSIVE PRIVACY GUIDE</span>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/" class="btn">⟵ HOME</a>
+    <a href="/history" class="btn">📂 HISTORY</a>
+  </div>
+</div>
+
+<!-- Scan ID input -->
+<div style="max-width:900px;margin:0 auto;padding:20px;">
+
+  <div class="card" style="padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+    <span class="label-xs" style="color:#4a6080;white-space:nowrap;">SCAN ID:</span>
+    <input id="scanIdInput" type="text" placeholder="Enter scan ID or load from history…"
+      style="flex:1;background:#060d1a;border:1px solid #142030;color:#c8ddf0;border-radius:4px;padding:7px 12px;font-family:'JetBrains Mono',monospace;font-size:.8rem;outline:none;"
+      onkeydown="if(event.key==='Enter')loadGuide()"/>
+    <button onclick="loadGuide()" style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399;padding:7px 16px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;">
+      LOAD GUIDE
+    </button>
+  </div>
+
+  <div id="guide-content">
+    <!-- Placeholder -->
+    <div style="text-align:center;padding:60px 20px;color:#4a6080;">
+      <div style="font-size:3rem;margin-bottom:12px;">🛡</div>
+      <p class="mono" style="font-size:.9rem;">Enter a Scan ID above to generate a personalised privacy guide,</p>
+      <p class="mono" style="font-size:.8rem;margin-top:6px;">or browse your <a href="/history" style="color:#38bdf8;">scan history</a> and click the shield button.</p>
+      <div style="margin-top:24px;">
+        <p class="label-xs" style="color:#4a6080;margin-bottom:12px;">GENERAL PRIVACY TIPS (always applicable)</p>
+        <div id="general-tips-placeholder"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+if (params.get('scan_id')) {
+  document.getElementById('scanIdInput').value = params.get('scan_id');
+  loadGuide();
+} else {
+  loadGeneralTips();
+}
+
+async function loadGeneralTips() {
+  // Load general tips even without a scan
+  const tips = [
+    {category:"Passwords",tip:"Use a password manager (Bitwarden, 1Password) and unique passwords per site.",priority:"critical"},
+    {category:"2FA",tip:"Enable two-factor authentication on all accounts, preferably with an authenticator app, not SMS.",priority:"critical"},
+    {category:"Email",tip:"Use email aliases (SimpleLogin, AnonAddy) to prevent your real address from being harvested.",priority:"high"},
+    {category:"Phone",tip:"Do not share your primary phone number publicly. Use a secondary SIM or VoIP number for sign-ups.",priority:"high"},
+    {category:"Search",tip:"Regularly Google yourself (and use DuckDuckGo) to audit what's public about you.",priority:"medium"},
+    {category:"Social",tip:"Audit your social media privacy settings quarterly — platforms change defaults silently.",priority:"medium"},
+    {category:"Location",tip:"Remove EXIF metadata from photos before posting. Disable location tagging in camera apps.",priority:"medium"},
+    {category:"Breaches",tip:"Monitor HaveIBeenPwned.com and set up email notifications for new breaches.",priority:"high"},
+    {category:"Data Brokers",tip:"Submit opt-out requests to major data brokers (Spokeo, WhitePages, BeenVerified) annually.",priority:"high"},
+  ];
+  const el = document.getElementById('general-tips-placeholder');
+  el.innerHTML = tips.map(t => tipCard(t)).join('');
+}
+
+async function loadGuide() {
+  const scanId = document.getElementById('scanIdInput').value.trim();
+  if (!scanId) return;
+  document.getElementById('guide-content').innerHTML = `<div style="text-align:center;padding:40px;color:#4a6080;" class="mono">Loading guide…</div>`;
+
+  const r = await fetch(`/api/report/defensive/${scanId}`);
+  if (!r.ok) {
+    document.getElementById('guide-content').innerHTML = `<div style="color:#ef4444;padding:20px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:6px;">⚠ Scan not found. Make sure the scan was saved and you have the correct ID.</div>`;
+    return;
+  }
+  const d = await r.json();
+  renderGuide(d);
+}
+
+function renderGuide(d) {
+  const riskColor = d.risk_level === 'HIGH' ? '#ef4444' : d.risk_level === 'MODERATE' ? '#facc15' : '#34d399';
+  let html = `
+    <!-- Header -->
+    <div class="card" style="padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">
+      <div>
+        <p class="mono" style="font-size:1rem;color:#c8ddf0;font-weight:600;">${esc(d.full_name)}</p>
+        <p class="mono" style="font-size:.65rem;color:#4a6080;margin-top:2px;">Scan ID: ${esc(d.scan_id)}</p>
+      </div>
+      <div style="margin-left:auto;text-align:right;">
+        <span class="mono" style="font-size:1.4rem;color:${riskColor};font-weight:700;">${d.risk_level}</span>
+        <p class="mono" style="font-size:.6rem;color:#4a6080;">Exposure: ${d.exposure_score}/100</p>
+      </div>
+    </div>
+
+    <!-- Summary chips -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="card" style="padding:8px 14px;flex:1;min-width:120px;">
+        <div class="label-xs">Platforms Exposed</div>
+        <div class="mono" style="font-size:1.2rem;color:#38bdf8;">${d.summary.profiles_exposed}</div>
+      </div>
+      <div class="card" style="padding:8px 14px;flex:1;min-width:120px;">
+        <div class="label-xs">Breaches Found</div>
+        <div class="mono" style="font-size:1.2rem;color:${d.summary.breaches_found > 0 ? '#ef4444' : '#34d399'};">${d.summary.breaches_found}</div>
+      </div>
+      <div class="card" style="padding:8px 14px;flex:1;min-width:120px;">
+        <div class="label-xs">Emails Exposed</div>
+        <div class="mono" style="font-size:1.2rem;color:#facc15;">${d.summary.emails_exposed}</div>
+      </div>
+      <div class="card" style="padding:8px 14px;flex:1;min-width:120px;">
+        <div class="label-xs">Phones Exposed</div>
+        <div class="mono" style="font-size:1.2rem;color:#a78bfa;">${d.summary.phones_exposed}</div>
+      </div>
+    </div>`;
+
+  // Priority Actions
+  if (d.priority_actions && d.priority_actions.length > 0) {
+    html += `<p class="label-xs" style="margin-bottom:8px;">⚡ Priority Actions</p>`;
+    html += d.priority_actions.map(a => `
+      <div class="urgency-${a.urgency}" style="border-left:3px solid;padding:10px 14px;margin-bottom:8px;border-radius:0 4px 4px 0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span class="mono" style="font-size:.55rem;padding:1px 7px;border:1px solid;border-radius:2px;
+            ${a.urgency==='CRITICAL'?'color:#ef4444;border-color:rgba(239,68,68,.4)':a.urgency==='HIGH'?'color:#facc15;border-color:rgba(250,204,21,.4)':'color:#38bdf8;border-color:rgba(56,189,248,.4)'}">
+            ${a.urgency}
+          </span>
+          <span class="mono" style="font-size:.78rem;color:#c8ddf0;font-weight:600;">${esc(a.action)}</span>
+        </div>
+        <p class="mono" style="font-size:.65rem;color:#4a6080;">${esc(a.reason)}</p>
+        ${a.guide ? `<details style="margin-top:6px;">
+          <summary class="mono" style="font-size:.65rem;color:#38bdf8;">▸ Show removal steps</summary>
+          <div style="margin-top:6px;padding-left:12px;">
+            ${a.guide.steps.map((s,i) => `<p class="mono" style="font-size:.65rem;color:#c8ddf0;margin-top:3px;">${i+1}. ${esc(s)}</p>`).join('')}
+            <a href="${a.guide.url}" target="_blank" class="mono" style="font-size:.6rem;color:#38bdf8;display:inline-block;margin-top:4px;">↗ Open settings page</a>
+          </div>
+        </details>` : ''}
+      </div>`).join('');
+  }
+
+  // General Tips
+  if (d.general_tips && d.general_tips.length > 0) {
+    html += `<p class="label-xs" style="margin:16px 0 8px;">🔒 General Privacy Hardening</p>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+    html += d.general_tips.map(t => tipCard(t)).join('');
+    html += `</div>`;
+  }
+
+  // All removal guides
+  if (d.all_guides) {
+    html += `<p class="label-xs" style="margin:16px 0 8px;">📖 Platform Removal Guides</p>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">`;
+    Object.entries(d.all_guides).forEach(([name, guide]) => {
+      html += `<details class="card" style="padding:10px 12px;">
+        <summary style="display:flex;align-items:center;gap:8px;">
+          <span class="mono" style="font-size:.72rem;color:#c8ddf0;">${esc(name)}</span>
+          <span class="mono" style="font-size:.55rem;color:#38bdf8;margin-left:auto;">▸ steps</span>
+        </summary>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #142030;">
+          ${guide.steps.map((s, i) => `<p class="mono" style="font-size:.65rem;color:#4a6080;margin-top:3px;">${i+1}. ${esc(s)}</p>`).join('')}
+          <a href="${guide.url}" target="_blank" class="mono" style="font-size:.6rem;color:#38bdf8;display:inline-block;margin-top:6px;">↗ Open settings</a>
+        </div>
+      </details>`;
+    });
+    html += `</div>`;
+  }
+
+  // PDF export button
+  html += `<div style="margin-top:20px;text-align:center;">
+    <a href="/api/report/pdf/${d.scan_id}" target="_blank" 
+      style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399;padding:10px 24px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;">
+      ⬇ DOWNLOAD FULL PDF REPORT
+    </a>
+  </div>`;
+
+  document.getElementById('guide-content').innerHTML = html;
+}
+
+function tipCard(t) {
+  const col = t.priority === 'critical' ? '#ef4444' : t.priority === 'high' ? '#facc15' : '#38bdf8';
+  return `
+    <div class="card tip-${t.priority}" style="padding:10px 12px;border:1px solid;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span class="mono" style="font-size:.6rem;color:${col};font-weight:600;">${esc(t.category)}</span>
+        <span class="mono" style="font-size:.5rem;padding:1px 5px;border:1px solid ${col};color:${col};border-radius:2px;margin-left:auto;">${t.priority.toUpperCase()}</span>
+      </div>
+      <p class="mono" style="font-size:.65rem;color:#9ab0c8;line-height:1.5;">${esc(t.tip)}</p>
+    </div>`;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

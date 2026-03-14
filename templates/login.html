@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — EDFP</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --accent: #58a6ff; --accent2: #388bfd; --text: #e6edf3;
+    --text-muted: #8b949e; --danger: #f85149; --success: #3fb950;
+    --high: #f85149; --mod: #d29922; --low: #3fb950;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem 2rem; width: 100%; max-width: 400px; }
+  .logo { text-align: center; margin-bottom: 2rem; }
+  .logo-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #58a6ff22, #388bfd44); border: 1px solid #58a6ff55; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: .75rem; }
+  .logo-icon svg { width: 24px; height: 24px; fill: var(--accent); }
+  .logo h1 { font-size: 1.25rem; font-weight: 600; color: var(--text); }
+  .logo p { font-size: .8rem; color: var(--text-muted); margin-top: .25rem; }
+  .form-group { margin-bottom: 1rem; }
+  label { display: block; font-size: .8rem; color: var(--text-muted); margin-bottom: .4rem; font-weight: 500; }
+  input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .65rem .9rem; color: var(--text); font-size: .9rem; transition: border-color .15s; outline: none; }
+  input:focus { border-color: var(--accent); }
+  .btn { width: 100%; padding: .7rem; background: var(--accent2); color: #fff; border: none; border-radius: 8px; font-size: .95rem; font-weight: 600; cursor: pointer; transition: background .15s, transform .1s; }
+  .btn:hover { background: var(--accent); }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .link-row { text-align: center; font-size: .85rem; color: var(--text-muted); }
+  .link-row a { color: var(--accent); text-decoration: none; }
+  .link-row a:hover { text-decoration: underline; }
+  .alert { padding: .65rem .9rem; border-radius: 8px; font-size: .85rem; margin-bottom: 1rem; display: none; }
+  .alert.error { background: #f8514920; border: 1px solid #f8514950; color: var(--danger); display: block; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff44; border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4a3 3 0 110 6 3 3 0 010-6zm0 8c2 0 6 1 6 3v1H6v-1c0-2 4-3 6-3z"/></svg>
+    </div>
+    <h1>EDFP</h1>
+    <p>Ethical Digital Footprint Profiler</p>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <form id="loginForm">
+    <div class="form-group">
+      <label for="username">Username atau Email</label>
+      <input id="username" type="text" placeholder="admin" autocomplete="username" required>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+    </div>
+    <button class="btn" type="submit" id="submitBtn">Masuk</button>
+  </form>
+
+  <hr class="divider">
+  <div class="link-row">
+    Belum punya akun? <a href="/register">Daftar sekarang</a>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('loginForm');
+  const alert = document.getElementById('alert');
+  const btn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alert.className = 'alert';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Masuk...';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.href = '/';
+      } else {
+        alert.className = 'alert error';
+        alert.textContent = data.detail || 'Login gagal. Cek kembali username/password.';
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+      }
+    } catch {
+      alert.className = 'alert error';
+      alert.textContent = 'Koneksi gagal. Coba lagi.';
+      btn.disabled = false;
+      btn.textContent = 'Masuk';
+    }
+  });
+
+  // Enter key on password
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') form.dispatchEvent(new Event('submit'));
+  });
+</script>
+</body>
+</html>

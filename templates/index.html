@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EDFP — Digital Footprint Profiler</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --bg:#060d1a; --card:#111d30; --border:#1a2d45; --accent:#38bdf8; --muted:#4a6080; --text:#c8ddf0; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; overflow-x:hidden; }
+    body::before { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(56,189,248,.03) 1px,transparent 1px), linear-gradient(90deg,rgba(56,189,248,.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+    body::after { content:''; position:fixed; top:-20%; left:50%; transform:translateX(-50%); width:800px; height:600px; background:radial-gradient(ellipse,rgba(56,189,248,.06) 0%,transparent 70%); pointer-events:none; z-index:0; }
+    .content { position:relative; z-index:1; }
+    @keyframes scanline { 0%{top:-5%} 100%{top:105%} }
+    .scanline { position:fixed; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(56,189,248,.15),transparent); animation:scanline 8s linear infinite; pointer-events:none; z-index:2; }
+    .mono { font-family:'JetBrains Mono',monospace; }
+    .raj  { font-family:'Rajdhani',sans-serif; }
+    .form-card { background:var(--card); border:1px solid var(--border); position:relative; }
+    .form-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent),transparent); }
+    .corner-tl { position:absolute; top:0; left:0; width:20px; height:20px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
+    .corner-br { position:absolute; bottom:0; right:0; width:20px; height:20px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
+    .field-input { background:#0d1b2e; border:1px solid var(--border); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:.85rem; padding:.75rem 1rem; width:100%; outline:none; transition:border-color .2s,box-shadow .2s; }
+    .field-input:focus { border-color:var(--accent); box-shadow:0 0 0 1px rgba(56,189,248,.15); }
+    .field-input::placeholder { color:var(--muted); }
+    .field-label { font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--accent); letter-spacing:.12em; text-transform:uppercase; margin-bottom:.4rem; display:block; }
+    @keyframes pulse-ring { 0%{box-shadow:0 0 0 0 rgba(56,189,248,.3)} 70%{box-shadow:0 0 0 12px rgba(56,189,248,0)} 100%{box-shadow:0 0 0 0 rgba(56,189,248,0)} }
+    .btn-scan { background:transparent; border:1px solid var(--accent); color:var(--accent); font-family:'Rajdhani',sans-serif; font-size:1rem; font-weight:700; letter-spacing:.2em; padding:.85rem 2.5rem; cursor:pointer; width:100%; transition:all .3s; }
+    .btn-scan:hover { background:rgba(56,189,248,.08); animation:pulse-ring 1.5s ease-out infinite; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .fade-up { animation:fadeUp .6s ease forwards; }
+    .d1{animation-delay:.1s;opacity:0} .d2{animation-delay:.25s;opacity:0} .d3{animation-delay:.4s;opacity:0} .d4{animation-delay:.55s;opacity:0} .d5{animation-delay:.7s;opacity:0}
+  </style>
+</head>
+<body>
+  <div class="scanline"></div>
+  <div class="content min-h-screen flex flex-col">
+    <nav class="border-b border-[#1a2d45] px-8 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-6 h-6 border border-[#38bdf8] flex items-center justify-center"><div class="w-2.5 h-2.5 bg-[#38bdf8]"></div></div>
+        <span class="raj font-bold text-lg tracking-widest text-[#38bdf8]">EDFP</span>
+        <span class="text-[#1a2d45] mx-2">|</span>
+        <span class="mono text-xs text-[#4a6080] tracking-widest hidden md:inline">DIGITAL FOOTPRINT PROFILER</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/history" class="mono text-xs px-3 py-1 border border-[#1a2d45] text-[#4a6080] hover:text-[#38bdf8] hover:border-[#38bdf8] transition-all">HISTORY</a>
+        <a href="/analytics" class="mono text-xs px-3 py-1 border border-[#1a2d45] text-[#4a6080] hover:text-[#38bdf8] hover:border-[#38bdf8] transition-all">ANALYTICS</a>
+        <a href="/defensive" class="mono text-xs px-3 py-1 border border-[#1a2d45] text-[#4a6080] hover:text-[#38bdf8] hover:border-[#38bdf8] transition-all">DEFENSIVE</a>
+        {% if user and user.role == 'admin' %}
+        <a href="/admin" class="mono text-xs px-3 py-1 border border-red-500/40 text-red-400/80 hover:border-red-400 transition-all">ADMIN</a>
+        {% endif %}
+        <span class="mono text-xs px-2 py-1 border border-green-500/40 text-green-400/80 hidden sm:inline">● {{ user.username if user else 'guest' }}</span>
+        <button onclick="logout()" class="mono text-xs px-2 py-1 border border-[#1a2d45] text-[#4a6080] hover:border-red-500/40 hover:text-red-400/80 transition-all cursor-pointer">EXIT</button>
+      </div>
+    </nav>
+
+    <div class="flex-1 flex items-center justify-center px-4 py-12">
+      <div class="w-full max-w-xl">
+        <div class="mb-10 fade-up d1">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="h-px flex-1 bg-gradient-to-r from-transparent to-[#1a2d45]"></div>
+            <span class="mono text-xs text-[#38bdf8] tracking-widest uppercase">OSINT Exposure Assessment</span>
+            <div class="h-px flex-1 bg-gradient-to-l from-transparent to-[#1a2d45]"></div>
+          </div>
+          <h1 class="raj font-bold text-4xl mb-3" style="letter-spacing:.05em">DIGITAL FOOTPRINT<br/><span class="text-[#38bdf8]">PROFILER</span></h1>
+          <p class="text-sm text-[#5a7898] leading-relaxed">Aggregates publicly available data from GitHub, SerpApi, LeakCheck, Shodan, IntelX and more.<br/>All results are sourced from live APIs — no simulation.</p>
+        </div>
+
+        <div class="mb-6 p-3 border border-[#facc15]/20 bg-[#facc15]/5 fade-up d2">
+          <p class="mono text-xs text-[#facc15]/80 leading-relaxed">⚠ ETHICAL USE ONLY — For defensive security exposure assessment. Searches publicly indexed data only.</p>
+        </div>
+
+        <div class="form-card p-7 fade-up d3">
+          <div class="corner-tl"></div><div class="corner-br"></div>
+          <p class="mono text-xs text-[#4a6080] tracking-widest uppercase mb-5">TARGET PARAMETERS</p>
+
+          <div class="mb-5">
+            <label class="field-label" for="full_name">Full Name <span class="text-red-400">*</span></label>
+            <input id="full_name" class="field-input" type="text" placeholder="e.g. Jane Doe" autocomplete="off" />
+          </div>
+
+          <div class="mb-6">
+            <label class="field-label" for="phone">Phone Number <span class="text-red-400">*</span></label>
+            <input id="phone" class="field-input" type="tel" placeholder="e.g. +62 812 3456 7890" autocomplete="off" />
+            <p class="mono text-[0.57rem] text-[#2a3d55] mt-2">Format internasional · contoh: +62 812 xxx xxxx</p>
+          </div>
+
+          <div class="mb-6">
+            <p class="mono text-[0.6rem] text-[#2a3d55]">Active sources: GitHub · SerpApi · LeakCheck · Shodan · IntelX · Gravatar · crt.sh · WhoisXML · URLScan · Censys</p>
+          </div>
+
+          <button class="btn-scan" id="scanBtn" onclick="initiateScan()">INITIATE SCAN</button>
+        </div>
+
+        <div class="mt-6 text-center fade-up d5">
+          <p class="mono text-xs text-[#2a3d55]">REAL DATA · LIVE APIs · NO SIMULATION · OSINT ASSESSMENT</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay (classic animated log style) -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-[#060d1a]/95 flex-col items-center justify-center z-50" style="display:none;">
+    <div class="text-center">
+      <div class="mb-8">
+        <div class="w-16 h-16 border-2 border-[#38bdf8]/30 border-t-[#38bdf8] rounded-full animate-spin mx-auto mb-4"></div>
+        <p class="raj text-xl text-[#38bdf8] tracking-widest font-bold">SCANNING LIVE SOURCES</p>
+        <p class="mono text-xs text-[#4a6080] mt-2" id="ws-current-label">Initialising…</p>
+      </div>
+      <div id="logLines" class="text-left mono text-xs space-y-2 max-w-sm mx-auto"></div>
+    </div>
+  </div>
+  <!-- hidden stubs so JS doesn't crash on ws-bar/ws-pct etc -->
+  <span id="ws-bar" style="display:none"></span>
+  <span id="ws-pct" style="display:none"></span>
+  <span id="ws-stage" style="display:none"></span>
+  <span id="ws-scan-id" style="display:none"></span>
+  <span id="ws-status" style="display:none"></span>
+  <span id="ws-log" style="display:none"></span>
+
+  <script>
+    // ── WebSocket progress state ──────────────────────────────────────────
+    let _ws = null;
+    let _scanId = null;
+
+    function _wsLog(label, status, detail) {
+      const c = document.getElementById('logLines');
+      const color = status === 'done' ? '#34d399' : status === 'error' ? '#ef4444' : status === 'skipped' ? '#4a6080' : '#38bdf8';
+      const icon  = status === 'done' ? '✓' : status === 'error' ? '✗' : status === 'skipped' ? '○' : '›';
+      const line  = document.createElement('div');
+      line.style.cssText = 'opacity:0;transition:opacity .4s';
+      line.innerHTML = `<span style="color:${color};">${icon}</span> <span style="color:#5a7898;">${label}</span>`;
+      c.appendChild(line);
+      requestAnimationFrame(() => requestAnimationFrame(() => line.style.opacity = '1'));
+      // update subtitle label too
+      document.getElementById('ws-current-label').textContent = label;
+    }
+
+    function _openWebSocket(scanId) {
+      _scanId = scanId;
+      document.getElementById('ws-scan-id').textContent = scanId;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url   = `${proto}://${location.host}/ws/scan/${scanId}`;
+
+      _ws = new WebSocket(url);
+      document.getElementById('ws-status').textContent = 'connected';
+      document.getElementById('ws-status').style.color = '#34d399';
+
+      _ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'ping') return;
+        if (msg.type === 'progress') {
+          // Update progress bar and label
+          document.getElementById('ws-bar').style.width        = msg.pct + '%';
+          document.getElementById('ws-pct').textContent        = msg.pct + '%';
+          document.getElementById('ws-stage').textContent      = `Stage ${msg.stage} / ${msg.total}`;
+          document.getElementById('ws-current-label').textContent = msg.label;
+          _wsLog(msg.label, msg.status, msg.detail);
+        }
+      };
+
+      _ws.onerror = () => {
+        document.getElementById('ws-status').textContent = 'fallback mode';
+        document.getElementById('ws-status').style.color = '#facc15';
+      };
+
+      _ws.onclose = () => {
+        document.getElementById('ws-status').textContent = 'closed';
+      };
+    }
+
+    async function initiateScan() {
+      const name = document.getElementById('full_name').value.trim();
+      if (!name) {
+        document.getElementById('full_name').style.borderColor = '#ef4444';
+        document.getElementById('full_name').focus();
+        return;
+      }
+
+      // Generate a temp scan ID for the WebSocket room — server will confirm the real one
+      // We use a pre-flight request to get the real scan_id first via a quick hash
+      const preId = btoa(name + Date.now()).replace(/[^a-zA-Z0-9]/g,'').slice(0,12).toUpperCase();
+
+      document.getElementById('loadingOverlay').style.display = 'flex';
+      document.getElementById('ws-log').innerHTML = '';
+
+      // Open WS before fetch so we catch the very first event
+      _openWebSocket(preId);
+      _wsLog('Scan engine initialising…', 'running', '');
+
+      const phoneVal = document.getElementById('phone').value.trim();
+      if (!phoneVal) {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('phone').style.borderColor = '#ef4444';
+        document.getElementById('phone').focus();
+        if (_ws) { _ws.close(); _ws = null; }
+        return;
+      }
+
+      const payload = {
+        full_name:    name,
+        location:     null,
+        organization: null,
+        username:     null,
+        email:        null,
+        phone:        phoneVal,
+        _ws_room:     preId,
+      };
+
+      try {
+        const res  = await fetch('/api/scan', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          let errMsg = `Server error ${res.status}`;
+          try {
+            const errData = await res.json();
+            errMsg = errData.detail || JSON.stringify(errData);
+          } catch {
+            errMsg = await res.text().then(t => t.slice(0, 300)) || errMsg;
+          }
+          throw new Error(errMsg);
+        }
+
+        const data = await res.json();
+
+        // Update WS room display with real scan_id
+        if (data.scan_id && _ws) {
+          document.getElementById('ws-scan-id').textContent = data.scan_id;
+        }
+
+        // Show 100% complete
+        document.getElementById('ws-bar').style.width    = '100%';
+        document.getElementById('ws-pct').textContent    = '100%';
+        document.getElementById('ws-stage').textContent  = 'Stage 10 / 10';
+        document.getElementById('ws-current-label').textContent = 'Scan complete — redirecting…';
+        _wsLog('All stages complete', 'done', `Scan ID: ${data.scan_id}`);
+
+        sessionStorage.setItem('scanResult', JSON.stringify(data));
+
+        if (_ws) { _ws.close(); _ws = null; }
+        setTimeout(() => { window.location.href = '/dashboard'; }, 600);
+
+      } catch (err) {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        if (_ws) { _ws.close(); _ws = null; }
+        alert('Scan failed. Is the server running?\n\n' + err);
+      }
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') initiateScan(); });
+
+    // Show history/defensive links
+    const navLinks = `
+      <div style="position:fixed;top:12px;right:16px;display:flex;gap:6px;z-index:100;">
+        <a href="/history" style="background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);color:#38bdf8;padding:4px 10px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-decoration:none;text-transform:uppercase;">📂 History</a>
+        <a href="/defensive" style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);color:#34d399;padding:4px 10px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-decoration:none;text-transform:uppercase;">🛡 Defensive</a>
+      </div>`;
+    document.body.insertAdjacentHTML('afterbegin', navLinks);
+  </script>
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  }
+</body>
+</html>

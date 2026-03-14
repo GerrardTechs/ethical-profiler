@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phone OSINT Simulator — Ethical Intelligence Dashboard</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #050d18;
+      --panel:       #0a1628;
+      --panel2:      #0f1f35;
+      --border:      #1a3356;
+      --accent:      #00d4ff;
+      --accent2:     #0090cc;
+      --green:       #00ff9d;
+      --yellow:      #ffd700;
+      --red:         #ff4757;
+      --text:        #c8daf0;
+      --text-dim:    #6b8aaa;
+      --font:        'Courier New', Courier, monospace;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .topbar-logo {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-icon { font-size: 20px; }
+    .logo-text { font-size: 14px; font-weight: bold; color: var(--accent); letter-spacing: 2px; }
+    .logo-sub  { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+    .topbar-meta { display: flex; gap: 20px; font-size: 11px; color: var(--text-dim); }
+    .topbar-meta span { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 1.8s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Disclaimer Banner ── */
+    .disclaimer-banner {
+      background: rgba(255,215,0,.07);
+      border: 1px solid rgba(255,215,0,.3);
+      border-left: 4px solid var(--yellow);
+      margin: 14px 20px;
+      padding: 10px 16px;
+      font-size: 11.5px;
+      color: var(--yellow);
+      border-radius: 4px;
+      line-height: 1.6;
+    }
+    .disclaimer-banner strong { font-size: 12px; }
+
+    /* ── Layout ── */
+    .main-container {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 0;
+      height: calc(100vh - 120px);
+      overflow: hidden;
+    }
+
+    /* ── Left Panel ── */
+    .left-panel {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Input Area ── */
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-label { font-size: 11px; color: var(--text-dim); }
+    .phone-input {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      font-family: var(--font);
+      font-size: 16px;
+      padding: 10px 14px;
+      outline: none;
+      width: 100%;
+      letter-spacing: 2px;
+      transition: border-color .2s;
+    }
+    .phone-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,.1); }
+    .phone-input::placeholder { color: var(--text-dim); letter-spacing: 1px; font-size: 13px; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+    .toggle-row input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+
+    .btn-analyze {
+      background: linear-gradient(135deg, #003d5e, #006a8e);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      padding: 11px 0;
+      text-transform: uppercase;
+      transition: all .2s;
+      width: 100%;
+    }
+    .btn-analyze:hover { background: linear-gradient(135deg, #005070, #008ab8); box-shadow: 0 0 16px rgba(0,212,255,.25); }
+    .btn-analyze:disabled { opacity: .5; cursor: default; }
+
+    /* ── Mini Status ── */
+    .analysis-status {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .status-row {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; padding: 5px 8px;
+      background: var(--panel2); border-radius: 3px;
+    }
+    .status-badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 2px;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .badge-ok     { background: rgba(0,255,157,.1);  color: var(--green); border: 1px solid rgba(0,255,157,.3); }
+    .badge-warn   { background: rgba(255,215,0,.1);  color: var(--yellow);border: 1px solid rgba(255,215,0,.3); }
+    .badge-none   { background: rgba(107,138,170,.1);color: var(--text-dim);border:1px solid var(--border); }
+    .badge-sim    { background: rgba(0,212,255,.1);  color: var(--accent); border: 1px solid rgba(0,212,255,.3); }
+
+    /* ── Right Panel ── */
+    .right-panel {
+      overflow-y: auto;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Empty State ── */
+    .empty-state {
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+      height: 100%;
+      color: var(--text-dim);
+    }
+    .empty-icon { font-size: 48px; opacity: .4; }
+    .empty-text { font-size: 13px; letter-spacing: 1px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: var(--panel2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .card-body { padding: 14px; }
+
+    /* ── Grid Layouts ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    /* ── Data Fields ── */
+    .field {
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .field-label {
+      font-size: 10px; letter-spacing: 1.5px; color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .field-value {
+      font-size: 13px; color: var(--text);
+    }
+    .field-value.accent  { color: var(--accent); }
+    .field-value.green   { color: var(--green); }
+    .field-value.yellow  { color: var(--yellow); }
+    .field-value.red     { color: var(--red); }
+
+    /* ── Confidence Bar ── */
+    .confidence-wrap { display: flex; flex-direction: column; gap: 5px; }
+    .conf-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+    .conf-track {
+      height: 6px; border-radius: 3px;
+      background: var(--panel2); border: 1px solid var(--border); overflow: hidden;
+    }
+    .conf-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transition: width .8s ease;
+    }
+
+    /* ── Simulated Timeline ── */
+    .timeline { display: flex; flex-direction: column; gap: 8px; }
+    .tl-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px; background: var(--panel2); border-radius: 4px;
+      border-left: 3px solid var(--accent);
+    }
+    .tl-icon { font-size: 14px; margin-top: 1px; }
+    .tl-content { display: flex; flex-direction: column; gap: 2px; }
+    .tl-title  { font-size: 12px; color: var(--text); }
+    .tl-sub    { font-size: 10px; color: var(--text-dim); }
+    .tl-badge  { font-size: 9px; padding: 1px 6px; border-radius: 2px; display: inline-block; margin-top: 2px; }
+
+    /* ── Risk Flags ── */
+    .risk-list { display: flex; flex-direction: column; gap: 6px; }
+    .risk-item {
+      padding: 8px 10px;
+      border-radius: 4px;
+      border-left: 3px solid;
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: 12px;
+    }
+    .risk-item.high  { background: rgba(255,71,87,.07); border-color: var(--red); color: #ffaaaa; }
+    .risk-item.none  { background: rgba(0,255,157,.05); border-color: var(--green); color: #aaffcc; }
+    .risk-flag-icon  { font-size: 14px; flex-shrink: 0; }
+
+    /* ── Analysis ID Bar ── */
+    .analysis-meta-bar {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--text-dim);
+    }
+    .analysis-id-val { color: var(--accent); font-weight: bold; letter-spacing: 1px; }
+
+    /* ── Sim Label ── */
+    .sim-pill {
+      display: inline-block;
+      background: rgba(0,212,255,.1);
+      border: 1px solid rgba(0,212,255,.3);
+      border-radius: 20px;
+      color: var(--accent);
+      font-size: 9px;
+      letter-spacing: 2px;
+      padding: 2px 8px;
+      text-transform: uppercase;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    /* ── Loading ── */
+    .loading-overlay {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      height: 100%;
+      color: var(--text-dim);
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 12px; letter-spacing: 2px; }
+
+    /* ── Error ── */
+    .error-card {
+      background: rgba(255,71,87,.07);
+      border: 1px solid rgba(255,71,87,.3);
+      border-radius: 6px;
+      padding: 16px;
+      color: var(--red);
+      font-size: 13px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Bar ── -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <span class="logo-icon">📡</span>
+    <div>
+      <div class="logo-text">PHONE OSINT SIMULATOR</div>
+      <div class="logo-sub">EDUCATIONAL INTELLIGENCE ANALYSIS DASHBOARD</div>
+    </div>
+  </div>
+  <div class="topbar-meta">
+    <span><span class="dot"></span> SIMULATION MODE ACTIVE</span>
+    <span>PROTOCOL: ITU-T E.164</span>
+    <span id="clock">--:--:-- UTC</span>
+  </div>
+</div>
+
+<!-- ── Disclaimer ── -->
+<div class="disclaimer-banner">
+  ⚠️ <strong>EDUCATIONAL DISCLAIMER:</strong>
+  This tool provides <strong>non-real-time simulated analysis</strong> based on ITU-T E.164 numbering plan metadata for privacy education and OSINT awareness purposes.
+  No actual tracking, real-time location queries, or live network calls are performed.
+  Activity timestamps and operator assignments are <strong>algorithmic estimations only</strong>.
+  Do not use for surveillance, stalking, harassment, or any unlawful purpose.
+</div>
+
+<!-- ── Main Layout ── -->
+<div class="main-container">
+
+  <!-- ─ Left Panel ─ -->
+  <div class="left-panel">
+
+    <div>
+      <div class="section-label">📞 Target Input</div>
+      <div class="input-group">
+        <div class="input-label">International Phone Number (E.164 Format)</div>
+        <input
+          class="phone-input"
+          id="phoneInput"
+          type="text"
+          placeholder="+1 555 000 0000"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="input-label" style="font-size:10px; color: #6b8aaa;">
+          Accepted: +62812xxxxxxx · +1-555-000-0000 · 0812xxxx
+        </div>
+      </div>
+    </div>
+
+    <label class="toggle-row">
+      <input type="checkbox" id="riskToggle" checked />
+      Include Public Risk Flag Analysis
+    </label>
+
+    <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
+      ▶ INITIATE ANALYSIS
+    </button>
+
+    <div>
+      <div class="section-label">⚙ Analysis Modules</div>
+      <div class="analysis-status" id="moduleStatus">
+        <div class="status-row">
+          <span>E.164 Prefix Lookup</span>
+          <span class="status-badge badge-none" id="mod-prefix">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span>Country Allocation</span>
+          <span class="status-badge badge-none" id="mod-country">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span>Operator Estimation</span>
+          <span class="status-badge badge-none" id="mod-operator">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span>Line Type Classification</span>
+          <span class="status-badge badge-none" id="mod-line">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span>Activity Simulation</span>
+          <span class="status-badge badge-none" id="mod-activity">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span>Risk Flag Assessment</span>
+          <span class="status-badge badge-none" id="mod-risk">STANDBY</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:10px; color: var(--text-dim); line-height: 1.6; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border);">
+      🔒 No data is stored or transmitted to third parties.<br>
+      All analysis is performed server-side using public numbering metadata.<br>
+      For real phone lookup, consult authorized telecom authorities.
+    </div>
+
+  </div>
+
+  <!-- ─ Right Panel ─ -->
+  <div class="right-panel" id="rightPanel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">📡</div>
+      <div class="empty-text">AWAITING TARGET INPUT</div>
+      <div style="font-size:11px; color: var(--text-dim); text-align:center; max-width:280px; line-height:1.7;">
+        Enter an international phone number in the left panel and initiate analysis to begin the simulation.
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-overlay" id="loadingState">
+      <div class="spinner"></div>
+      <div class="loading-text">ANALYZING PREFIX DATA...</div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsArea" style="display:none; display:flex; flex-direction:column; gap:14px;"></div>
+
+  </div>
+</div>
+
+<script>
+const API_BASE = "";
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,"0");
+  const m = String(now.getUTCMinutes()).padStart(2,"0");
+  const s = String(now.getUTCSeconds()).padStart(2,"0");
+  document.getElementById("clock").textContent = `${h}:${m}:${s} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Enter key
+document.getElementById("phoneInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") runAnalysis();
+});
+
+function setModuleStatus(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = "status-badge";
+  if (status === "OK")     { el.className += " badge-ok";   el.textContent = "✓ ACTIVE"; }
+  else if (status === "SIM")    { el.className += " badge-sim";  el.textContent = "∿ SIM"; }
+  else if (status === "WARN")   { el.className += " badge-warn"; el.textContent = "⚠ FLAGGED"; }
+  else                          { el.className += " badge-none"; el.textContent = "STANDBY"; }
+}
+
+function resetModules() {
+  ["mod-prefix","mod-country","mod-operator","mod-line","mod-activity","mod-risk"]
+    .forEach(id => setModuleStatus(id, "STANDBY"));
+}
+
+function showLoading(v) {
+  document.getElementById("emptyState").style.display   = v ? "none" : "";
+  document.getElementById("loadingState").style.display = v ? "flex" : "none";
+  document.getElementById("resultsArea").style.display  = v ? "none" : "";
+}
+
+function renderResults(d) {
+  const ra = document.getElementById("resultsArea");
+  ra.style.display = "flex";
+
+  // Module status
+  setModuleStatus("mod-prefix",   "OK");
+  setModuleStatus("mod-country",  d.country !== "Unknown" ? "OK" : "WARN");
+  setModuleStatus("mod-operator", "OK");
+  setModuleStatus("mod-line",     "OK");
+  setModuleStatus("mod-activity", "SIM");
+  setModuleStatus("mod-risk",     d.risk_flag_count > 0 ? "WARN" : "OK");
+
+  const cf = d.confidence_score;
+  const cfColor = cf >= 75 ? "var(--green)" : cf >= 50 ? "var(--yellow)" : "var(--red)";
+
+  ra.innerHTML = `
+    <!-- Analysis ID Bar -->
+    <div class="analysis-meta-bar">
+      <span>ANALYSIS ID: <span class="analysis-id-val">${d.analysis_id}</span></span>
+      <span>INPUT: <span style="color:var(--accent)">${escHtml(d.input_raw)}</span></span>
+      <span>NORMALIZED: <span style="color:var(--accent)">${escHtml(d.normalized)}</span></span>
+      <span style="color:var(--text-dim)">${d.analysis_timestamp.replace("T"," ").substring(0,19)} UTC</span>
+    </div>
+
+    <!-- Row 1: Geographic + Network -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+
+      <!-- Geographic Allocation -->
+      <div class="card">
+        <div class="card-header">🌍 Geographic Allocation</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:12px;">
+            <div class="field">
+              <div class="field-label">Country</div>
+              <div class="field-value accent">${escHtml(d.country)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">ISO Code</div>
+              <div class="field-value accent">${escHtml(d.iso_code)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Region</div>
+              <div class="field-value">${escHtml(d.region)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Timezone Est.</div>
+              <div class="field-value">${escHtml(d.timezone_estimate)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Country Code</div>
+              <div class="field-value green">${escHtml(d.country_code)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Subscriber Digits</div>
+              <div class="field-value">${escHtml(d.subscriber_number)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Network Intelligence -->
+      <div class="card">
+        <div class="card-header">📶 Network Intelligence</div>
+        <div class="card-body">
+          <div class="grid-2" style="gap:12px;">
+            <div class="field" style="grid-column:1/-1">
+              <div class="field-label">Estimated Operator</div>
+              <div class="field-value accent" style="font-size:14px;">${escHtml(d.operator_name)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Network Type</div>
+              <div class="field-value green">${escHtml(d.network_type)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Operator Tier</div>
+              <div class="field-value">${escHtml(d.operator_tier)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Line Type</div>
+              <div class="field-value yellow">${escHtml(d.line_type)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Prefix Block</div>
+              <div class="field-value">${escHtml(d.prefix_block)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Prefix Type</div>
+              <div class="field-value">${escHtml(d.prefix_type)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 2: Activity Timeline + Confidence -->
+    <div style="display:grid; grid-template-columns:1fr 300px; gap:14px;">
+
+      <!-- Simulated Activity Timeline -->
+      <div class="card">
+        <div class="card-header">⏱ Simulated Activity Timeline <span class="sim-pill">NON-REAL-TIME</span></div>
+        <div class="card-body">
+          <div class="timeline">
+            <div class="tl-item">
+              <div class="tl-icon">📅</div>
+              <div class="tl-content">
+                <div class="tl-title">Estimated Registration Window</div>
+                <div class="tl-sub">${escHtml(d.registration_estimate)}</div>
+                <span class="tl-badge" style="background:rgba(0,212,255,.1);color:var(--accent);border:1px solid rgba(0,212,255,.3);">ESTIMATED · NOT VERIFIED</span>
+              </div>
+            </div>
+            <div class="tl-item" style="border-left-color:var(--green)">
+              <div class="tl-icon">🕐</div>
+              <div class="tl-content">
+                <div class="tl-title">Simulated Last Seen</div>
+                <div class="tl-sub">${escHtml(d.last_seen_simulated)}</div>
+                <span class="tl-badge" style="background:rgba(0,255,157,.05);color:var(--green);border:1px solid rgba(0,255,157,.3);">${escHtml(d.last_seen_label)} · SIMULATION ONLY</span>
+              </div>
+            </div>
+            <div class="tl-item" style="border-left-color:var(--yellow)">
+              <div class="tl-icon">📊</div>
+              <div class="tl-content">
+                <div class="tl-title">Activity Pattern Estimation</div>
+                <div class="tl-sub">${escHtml(d.activity_pattern)}</div>
+                <span class="tl-badge" style="background:rgba(255,215,0,.07);color:var(--yellow);border:1px solid rgba(255,215,0,.3);">BEHAVIORAL MODEL · SIMULATED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Confidence -->
+      <div class="card">
+        <div class="card-header">📈 Analysis Confidence</div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+          <div style="text-align:center;">
+            <div style="font-size:40px;font-weight:bold;color:${cfColor};">${cf}%</div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">METADATA CONFIDENCE SCORE</div>
+          </div>
+          <div class="confidence-wrap">
+            <div class="conf-label">
+              <span>Format Plausibility</span>
+              <span style="color:${cfColor}">${cf}%</span>
+            </div>
+            <div class="conf-track">
+              <div class="conf-fill" style="width:${cf}%;background:linear-gradient(90deg,var(--accent2),${cfColor});"></div>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label">Number Length</div>
+            <div class="field-value">${d.number_length} digits</div>
+          </div>
+          <div class="field">
+            <div class="field-label">E.164 Compliance</div>
+            <div class="field-value ${d.normalized.startsWith("+") ? "green" : "yellow"}">
+              ${d.normalized.startsWith("+") ? "✓ International Format" : "⚠ Local Format"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 3: Risk Flags -->
+    <div class="card">
+      <div class="card-header">⚠ Public Risk Flag Assessment</div>
+      <div class="card-body">
+        <div class="risk-list">
+          ${d.risk_flag_count === 0
+            ? `<div class="risk-item none">
+                <span class="risk-flag-icon">✅</span>
+                <span>No risk flags found in public spam/fraud numbering registries for this prefix block.</span>
+               </div>`
+            : d.risk_flags.map(f => `
+                <div class="risk-item high">
+                  <span class="risk-flag-icon">⚠️</span>
+                  <span>${escHtml(f)}</span>
+                </div>`).join("")
+          }
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:10px;line-height:1.6;">
+          Risk flags are derived from publicly reported numbering plan analysis and do not constitute verified fraud determination.
+        </div>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div style="background:rgba(255,215,0,.04);border:1px solid rgba(255,215,0,.2);border-radius:4px;padding:10px 14px;font-size:10.5px;color:#b8a050;line-height:1.7;">
+      ${escHtml(d.disclaimer)}
+    </div>
+  `;
+}
+
+async function runAnalysis() {
+  const phoneRaw   = document.getElementById("phoneInput").value.trim();
+  const includeRisk = document.getElementById("riskToggle").checked;
+
+  if (!phoneRaw) {
+    document.getElementById("phoneInput").focus();
+    return;
+  }
+
+  document.getElementById("analyzeBtn").disabled = true;
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("resultsArea").style.display = "none";
+  document.getElementById("loadingState").style.display = "flex";
+  resetModules();
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/phone/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone_number: phoneRaw, include_risk_flags: includeRisk }),
+    });
+
+    const data = await resp.json();
+
+    document.getElementById("loadingState").style.display = "none";
+
+    if (!resp.ok || data.error) {
+      const ra = document.getElementById("resultsArea");
+      ra.style.display = "flex";
+      ra.innerHTML = `<div class="error-card">
+        ⚠ Analysis Error: ${escHtml(data.error || data.detail || "Unknown error")}
+      </div>`;
+    } else {
+      renderResults(data);
+    }
+  } catch (err) {
+    document.getElementById("loadingState").style.display = "none";
+    const ra = document.getElementById("resultsArea");
+    ra.style.display = "flex";
+    ra.innerHTML = `<div class="error-card">⚠ Network error: ${escHtml(err.message)}</div>`;
+  } finally {
+    document.getElementById("analyzeBtn").disabled = false;
+  }
+}
+
+function escHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>

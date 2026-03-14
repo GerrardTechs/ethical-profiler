@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EDFP — Intelligence Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <style>
+    :root {
+      --bg:      #060d1a;
+      --surface: #0b1525;
+      --card:    #0d1a2d;
+      --border:  #142030;
+      --accent:  #38bdf8;
+      --warn:    #facc15;
+      --danger:  #ef4444;
+      --success: #34d399;
+      --muted:   #4a6080;
+      --text:    #c8ddf0;
+      --dim:     #5a7898;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(56,189,248,0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,0.018) 1px, transparent 1px);
+      background-size: 42px 42px;
+    }
+    .content { position: relative; z-index: 1; }
+
+    @keyframes scan { 0% { top: -2%; } 100% { top: 102%; } }
+    .scanline {
+      position: fixed; left: 0; right: 0; height: 1px; pointer-events: none; z-index: 100;
+      background: linear-gradient(90deg, transparent, rgba(56,189,248,0.08), transparent);
+      animation: scan 12s linear infinite;
+    }
+
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .raj  { font-family: 'Rajdhani', sans-serif; }
+    .label-xs {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--accent);
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(56,189,248,0.25), transparent);
+    }
+    .card-hdr {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .dot { width: 5px; height: 5px; background: var(--accent); }
+
+    /* ── Score rings ── */
+    .ring {
+      width: 96px; height: 96px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ring-inner {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: var(--card);
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+    }
+
+    /* ── Risk badge ── */
+    .risk-badge {
+      font-family: 'Rajdhani', sans-serif; font-weight: 700;
+      font-size: 0.78rem; letter-spacing: 0.15em;
+      padding: 0.25rem 0.7rem; border: 1px solid;
+    }
+    .r-LOW      { color: #34d399; border-color: #34d399; background: rgba(52,211,153,0.07); }
+    .r-MODERATE { color: #facc15; border-color: #facc15; background: rgba(250,204,21,0.07); }
+    .r-HIGH     { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.07); }
+
+    /* ── Bars ── */
+    .bar-track { height: 5px; background: rgba(56,189,248,0.07); overflow: hidden; }
+    .bar-fill  { height: 100%; transition: width 1.1s cubic-bezier(.4,0,.2,1); }
+
+    /* ── Profile cards ── */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.8rem;
+      display: flex; align-items: flex-start; gap: 0.6rem;
+      transition: border-color .2s;
+    }
+    .profile-card:hover { border-color: rgba(56,189,248,0.35); }
+    .cat-icon {
+      width: 28px; height: 28px; border: 1px solid;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; flex-shrink: 0;
+    }
+    .ci-social   { border-color: rgba(167,139,250,.4); color: #a78bfa; }
+    .ci-dev      { border-color: rgba(52,211,153,.4);  color: #34d399; }
+    .ci-doc      { border-color: rgba(250,204,21,.4);  color: #facc15; }
+    .ci-pro      { border-color: rgba(56,189,248,.4);  color: #38bdf8; }
+
+    /* ── Contact row ── */
+    .contact-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.85rem;
+      display: flex; align-items: center; gap: 0.6rem;
+      transition: border-color .2s;
+    }
+    .contact-row:hover { border-color: rgba(56,189,248,.3); }
+    .contact-type-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.52rem; letter-spacing: .1em;
+      padding: 0.1rem 0.4rem; border: 1px solid; flex-shrink: 0;
+    }
+    .ct-email { border-color: rgba(250,204,21,.4); color: #facc15; }
+    .ct-phone { border-color: rgba(52,211,153,.4); color: #34d399; }
+
+    /* ── Breach card ── */
+    .breach-item {
+      border: 1px solid rgba(239,68,68,.2);
+      background: rgba(239,68,68,.04);
+      padding: 0.65rem 0.8rem;
+    }
+    .dc-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.52rem;
+      border: 1px solid rgba(239,68,68,.25);
+      color: rgba(239,68,68,.75);
+      padding: 0.08rem 0.3rem;
+    }
+
+    /* ── Log ── */
+    .log-line {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+      color: var(--dim); opacity: 0; transform: translateY(4px);
+      transition: opacity .35s, transform .35s;
+    }
+    .log-line.vis { opacity: 1; transform: none; }
+
+    /* ── Graph ── */
+    #graph-svg { width: 100%; height: 360px; }
+
+    /* ── API source pill ── */
+    .api-pill {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.55rem;
+      padding: 0.15rem 0.5rem; border: 1px solid;
+    }
+    .api-on  { border-color: rgba(52,211,153,.4); color: #34d399; background: rgba(52,211,153,.05); }
+    .api-off { border-color: var(--border); color: #2a3d55; }
+
+    /* ── Tooltip ── */
+    #tip {
+      position: fixed; z-index: 999; pointer-events: none; display: none;
+      background: #0d1a2d; border: 1px solid var(--border);
+      padding: 7px 11px; max-width: 220px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--text);
+    }
+
+    /* ── Fade-in ── */
+    @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+    .anim { opacity:0; animation: fadeUp .45s ease forwards; }
+    .d0{animation-delay:.05s} .d1{animation-delay:.12s} .d2{animation-delay:.2s}
+    .d3{animation-delay:.28s} .d4{animation-delay:.38s} .d5{animation-delay:.5s}
+    .d6{animation-delay:.63s}
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .empty-state {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+      color: var(--muted); text-align: center; padding: 1.5rem;
+      border: 1px dashed var(--border);
+    }
+  </style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="tip"></div>
+
+<div class="content">
+<!-- NAV -->
+<nav class="border-b border-[#142030] px-5 py-2.5 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <a href="/" class="flex items-center gap-2 group">
+      <div class="w-5 h-5 border border-[#38bdf8]/50 flex items-center justify-center group-hover:border-[#38bdf8] transition-colors">
+        <div class="w-2 h-2 bg-[#38bdf8]"></div>
+      </div>
+      <span class="raj font-bold text-base tracking-widest text-[#38bdf8]">EDFP</span>
+    </a>
+    <span class="text-[#142030]">|</span>
+    <span class="mono text-[0.58rem] text-[#4a6080] tracking-widest">INTELLIGENCE REPORT · REAL DATA ONLY</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <button onclick="exportJSON()" class="mono text-[0.6rem] text-[#4a6080] border border-[#142030] px-3 py-1.5 hover:border-[#38bdf8]/40 hover:text-[#38bdf8] transition-colors">EXPORT JSON</button>
+    <button onclick="downloadPDF()" id="pdf-btn" class="mono text-[0.6rem] text-[#34d399] border border-[#34d399]/30 px-3 py-1.5 hover:border-[#34d399]/60 transition-colors" style="display:none">⬇ PDF REPORT</button>
+    <a href="/history" class="mono text-[0.6rem] text-[#4a6080] border border-[#142030] px-3 py-1.5 hover:border-[#38bdf8]/40 hover:text-[#38bdf8] transition-colors">📂 HISTORY</a>
+    <a href="/defensive" class="mono text-[0.6rem] text-[#34d399] border border-[#34d399]/30 px-3 py-1.5 hover:border-[#34d399]/60 transition-colors">🛡 DEFENSIVE</a>
+    <a href="/" class="mono text-[0.6rem] text-[#4a6080] border border-[#142030] px-3 py-1.5 hover:border-[#38bdf8]/40 hover:text-[#38bdf8] transition-colors">← NEW SCAN</a>
+  </div>
+</nav>
+
+<div class="flex" style="min-height:calc(100vh - 44px)">
+
+<!-- ══════════════════════════════ MAIN ══════════════════════════════ -->
+<div class="flex-1 p-4 space-y-4 overflow-y-auto">
+
+  <!-- ── HEADER ── -->
+  <div class="card p-4 anim d0">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="label-xs mb-1">Target Intelligence Profile</p>
+        <h1 id="hdr-name" class="raj font-bold text-3xl text-white tracking-wide">—</h1>
+        <div class="flex items-center gap-3 mt-2 flex-wrap">
+          <span id="hdr-location" class="mono text-[0.65rem] text-[#4a6080]"></span>
+          <span id="hdr-org"      class="mono text-[0.65rem] text-[#4a6080]"></span>
+          <span id="hdr-id"       class="mono text-[0.58rem] text-[#1e3a52]"></span>
+        </div>
+      </div>
+      <div class="flex items-center gap-5 flex-shrink-0">
+        <!-- Confidence ring -->
+        <div class="text-center">
+          <div class="ring" id="conf-ring">
+            <div class="ring-inner">
+              <span id="conf-num" class="raj font-bold text-xl text-[#38bdf8]">—</span>
+              <span class="mono text-[0.5rem] text-[#4a6080]">CONF</span>
+            </div>
+          </div>
+          <p class="mono text-[0.52rem] text-[#4a6080] mt-1">Confidence</p>
+        </div>
+        <!-- Exposure ring -->
+        <div class="text-center">
+          <div class="ring" id="exp-ring">
+            <div class="ring-inner">
+              <span id="exp-num" class="raj font-bold text-xl">—</span>
+              <span class="mono text-[0.5rem] text-[#4a6080]">RISK</span>
+            </div>
+          </div>
+          <p class="mono text-[0.52rem] text-[#4a6080] mt-1">Exposure</p>
+        </div>
+        <!-- Risk badge -->
+        <div class="text-center">
+          <div id="risk-badge" class="risk-badge r-LOW">—</div>
+          <p class="mono text-[0.52rem] text-[#4a6080] mt-2">Risk Level</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: IDENTITY SUMMARY + CONTACTS ── -->
+  <div class="grid grid-cols-2 gap-4 anim d1">
+
+    <!-- Identity Summary -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="dot"></div>
+        <span class="label-xs">Identity Summary</span>
+        <span class="ml-auto mono text-[0.55rem] text-[#2a3d55]">REAL DATA ONLY</span>
+      </div>
+      <div class="p-4 space-y-3">
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="mono text-[0.62rem] text-[#4a6080]">Profiles Discovered</span>
+            <span id="sum-profiles" class="mono text-[0.65rem] text-[#38bdf8]">0</span>
+          </div>
+          <div class="bar-track"><div id="bar-profiles" class="bar-fill" style="width:0%;background:#38bdf8"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="mono text-[0.62rem] text-[#4a6080]">Emails Found</span>
+            <span id="sum-emails" class="mono text-[0.65rem] text-[#38bdf8]">0</span>
+          </div>
+          <div class="bar-track"><div id="bar-emails" class="bar-fill" style="width:0%;background:#facc15"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="mono text-[0.62rem] text-[#4a6080]">Phone Numbers</span>
+            <span id="sum-phones" class="mono text-[0.65rem] text-[#38bdf8]">0</span>
+          </div>
+          <div class="bar-track"><div id="bar-phones" class="bar-fill" style="width:0%;background:#34d399"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="mono text-[0.62rem] text-[#4a6080]">Confirmed Breaches</span>
+            <span id="sum-breaches" class="mono text-[0.65rem] text-[#ef4444]">0</span>
+          </div>
+          <div class="bar-track"><div id="bar-breaches" class="bar-fill" style="width:0%;background:#ef4444"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="mono text-[0.62rem] text-[#4a6080]">Confidence Score</span>
+            <span id="sum-conf" class="mono text-[0.65rem] text-[#38bdf8]">0%</span>
+          </div>
+          <div class="bar-track"><div id="bar-conf" class="bar-fill" style="width:0%;background:#38bdf8"></div></div>
+        </div>
+        <div class="flex justify-between pt-1 border-t border-[#142030]">
+          <span class="mono text-[0.6rem] text-[#4a6080]">Sources Queried</span>
+          <span id="sum-sources" class="mono text-[0.65rem] text-[#38bdf8]">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Discovered Contacts (emails + phones combined) -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="dot" style="background:#facc15"></div>
+        <span class="label-xs">Discovered Contacts</span>
+        <span id="contacts-count" class="ml-auto mono text-[0.58rem] text-[#facc15] border border-[#facc15]/25 px-1.5">0</span>
+      </div>
+      <div class="p-3 space-y-1.5 max-h-64 overflow-y-auto" id="contacts-list">
+        <div class="empty-state">Awaiting scan data…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXPOSURE SURFACE ── -->
+  <div class="card anim d2">
+    <div class="card-hdr">
+      <div class="dot" style="background:#ef4444"></div>
+      <span class="label-xs">Exposure Surface Analysis</span>
+      <span class="ml-auto mono text-[0.55rem] text-[#2a3d55]">WEIGHTED BY REAL SIGNALS</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-x-8 gap-y-4" id="exposure-surface">
+      <div class="empty-state col-span-2">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ── DIGITAL PRESENCE ── -->
+  <div class="card anim d3">
+    <div class="card-hdr">
+      <div class="dot" style="background:#a78bfa"></div>
+      <span class="label-xs">Discovered Profiles</span>
+      <span id="profiles-count" class="ml-auto mono text-[0.58rem] text-[#a78bfa] border border-[#a78bfa]/25 px-1.5">0 found</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="profiles-grid">
+      <div class="empty-state col-span-2">No profiles found — run a scan first.</div>
+    </div>
+  </div>
+
+  <!-- ── BREACH RECORDS (hidden until data exists) ── -->
+  <div class="card anim d4" id="breach-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#ef4444"></div>
+      <span class="label-xs">Confirmed Data Breaches</span>
+      <span class="mono text-[0.55rem] text-[#4a6080] ml-1">via LeakCheck.io</span>
+      <span id="breach-count-badge" class="ml-auto mono text-[0.6rem] text-red-400 border border-red-500/30 px-1.5">0</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="breach-list"></div>
+  </div>
+
+  <!-- ── SHODAN (hidden until data) ── -->
+  <div class="card anim d4" id="shodan-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#f97316"></div>
+      <span class="label-xs">Infrastructure Exposure</span>
+      <span class="mono text-[0.55rem] text-[#4a6080] ml-1">via Shodan</span>
+      <span id="shodan-count" class="ml-auto mono text-[0.6rem] text-orange-400 border border-orange-500/30 px-1.5">0 hosts</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="shodan-list"></div>
+  </div>
+
+  <!-- ── INTELX (hidden until data) ── -->
+  <div class="card anim d5" id="intelx-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#818cf8"></div>
+      <span class="label-xs">Intelligence X Records</span>
+      <span class="mono text-[0.55rem] text-[#4a6080] ml-1">indexed references</span>
+      <span id="intelx-count" class="ml-auto mono text-[0.6rem] text-indigo-400 border border-indigo-500/30 px-1.5">0</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="intelx-list"></div>
+  </div>
+
+
+  <!-- ── PHONE ANALYSIS (hidden until data) ── -->
+  <div class="card anim d5" id="phone-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#34d399"></div>
+      <span class="label-xs">Phone Number Analysis</span>
+      <span class="mono text-[0.52rem] text-[#4a6080] ml-1">WhoisXML + E.164 registry</span>
+      <span id="phone-count" class="ml-auto mono text-[0.6rem] text-emerald-400 border border-emerald-500/30 px-1.5">0</span>
+    </div>
+    <div class="p-4 space-y-3" id="phone-list"></div>
+  </div>
+
+  <!-- ── URLSCAN (hidden until data) ── -->
+  <div class="card anim d5" id="urlscan-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#f59e0b"></div>
+      <span class="label-xs">URLScan.io Web Presence</span>
+      <span class="mono text-[0.52rem] text-[#4a6080] ml-1">recent scan history</span>
+      <span id="urlscan-count" class="ml-auto mono text-[0.6rem] text-amber-400 border border-amber-500/30 px-1.5">0</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="urlscan-list"></div>
+  </div>
+
+  <!-- ── CENSYS (hidden until data) ── -->
+  <div class="card anim d5" id="censys-card" style="display:none">
+    <div class="card-hdr">
+      <div class="dot" style="background:#0ea5e9"></div>
+      <span class="label-xs">Censys Host Intelligence</span>
+      <span class="mono text-[0.52rem] text-[#4a6080] ml-1">internet-wide scan data</span>
+      <span id="censys-count" class="ml-auto mono text-[0.6rem] text-sky-400 border border-sky-500/30 px-1.5">0</span>
+    </div>
+    <div class="p-4 grid grid-cols-2 gap-2" id="censys-list"></div>
+  </div>
+
+  <!-- ── IDENTITY GRAPH ── -->
+  <div class="card anim d6">
+    <div class="card-hdr justify-between">
+      <div class="flex items-center gap-2">
+        <div class="dot" style="background:#34d399"></div>
+        <span class="label-xs">Identity Relationship Graph</span>
+        <span class="mono text-[0.52rem] text-[#2a3d55] ml-1">drag nodes · hover for details</span>
+      </div>
+      <div class="flex items-center gap-3 mono text-[0.55rem] text-[#4a6080] flex-wrap">
+        <span>⬤ <span style="color:#38bdf8">target</span></span>
+        <span>⬤ <span style="color:#facc15">email</span></span>
+        <span>⬤ <span style="color:#a78bfa">social</span></span>
+        <span>⬤ <span style="color:#34d399">developer</span></span>
+        <span>⬤ <span style="color:#fb923c">document</span></span>
+        <span>⬤ <span style="color:#ef4444">breach</span></span>
+        <span>⬤ <span style="color:#2dd4bf">cert</span></span>
+        <span>⬤ <span style="color:#f97316">infra</span></span>
+        <span>⬤ <span style="color:#818cf8">intelx</span></span>
+      </div>
+    </div>
+    <div id="graph-wrap" class="p-2">
+      <svg id="graph-svg"></svg>
+    </div>
+    <div id="graph-empty" class="empty-state" style="display:none">No graph data — provide more search parameters.</div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══════════════════════════════ SIDEBAR ══════════════════════════════ -->
+<div class="w-64 border-l border-[#142030] flex flex-col" style="min-height:calc(100vh - 44px)">
+
+  <!-- Scan log -->
+  <div class="p-3 border-b border-[#142030]">
+    <span class="label-xs">Scan Log</span>
+  </div>
+  <div class="flex-1 p-3 space-y-1.5 overflow-y-auto" id="scan-log"></div>
+
+  <!-- API sources -->
+  <div class="p-3 border-t border-[#142030] space-y-2">
+    <p class="label-xs">API Sources</p>
+    <div class="flex flex-wrap gap-1" id="api-sources"></div>
+  </div>
+
+  <!-- crt.sh domains (hidden until data) -->
+  <div id="crt-section" class="p-3 border-t border-[#142030]" style="display:none">
+    <p class="label-xs mb-2">SSL / Subdomains (crt.sh)</p>
+    <div id="crt-list" class="space-y-0.5 max-h-40 overflow-y-auto"></div>
+  </div>
+
+  <!-- Meta -->
+  <div class="p-3 border-t border-[#142030] space-y-1">
+    <p class="mono text-[0.58rem] text-[#1e3a52]">SCAN ID: <span id="meta-id">—</span></p>
+    <p class="mono text-[0.58rem] text-[#1e3a52]">TIME: <span id="meta-ts">—</span></p>
+  </div>
+
+</div><!-- /sidebar -->
+
+</div><!-- /flex -->
+</div><!-- /content -->
+
+<script>
+// ────────────────────────────────────────────────────────────────
+// Constants
+// ────────────────────────────────────────────────────────────────
+const NODE_COLORS = {
+  target: '#38bdf8', email: '#facc15', social: '#a78bfa',
+  developer: '#34d399', document: '#fb923c', breach: '#ef4444',
+  cert: '#2dd4bf', infrastructure: '#f97316', intelligence: '#818cf8',
+};
+const NODE_RADII = {
+  target: 22, email: 15, social: 12, developer: 12,
+  document: 11, breach: 11, cert: 10, infrastructure: 11, intelligence: 10,
+};
+
+const FACTOR_LABELS = {
+  breach_exposure:        'Breach Exposure',
+  email_exposure:         'Email Exposure',
+  developer_presence:     'Developer Presence',
+  web_presence:           'Web Presence',
+  infrastructure_exposure:'Infrastructure Exposure',
+  dark_web_exposure:      'Dark Web Exposure',
+  org_linkage:            'Organisation Linkage',
+};
+
+const CAT_ICONS   = { social:'👤', developer:'⌨', document:'📄', professional:'💼' };
+let _currentScanId = null;
+const CAT_CI_CLS  = { social:'ci-social', developer:'ci-dev', document:'ci-doc', professional:'ci-pro' };
+
+function scoreColor(s) {
+  if (s >= 70) return '#ef4444';
+  if (s >= 40) return '#facc15';
+  return '#34d399';
+}
+
+// ────────────────────────────────────────────────────────────────
+// Load scan data
+// ────────────────────────────────────────────────────────────────
+const raw = sessionStorage.getItem('scanResult');
+if (!raw) { window.location.href = '/'; }
+const d = JSON.parse(raw);
+console.debug('[EDFP] scan data loaded:', {
+  name: d.full_name,
+  profiles: (d.matched_profiles||[]).length,
+  emails: (d.probable_emails||[]).length,
+  exposure: d.exposure_score,
+  risk: d.risk_level,
+});
+
+// ── Contacts: merge emails + phones from discovered_contacts ────
+const contacts = d.discovered_contacts || [];
+const emailContacts = (d.probable_emails && d.probable_emails.length > 0)
+  ? d.probable_emails
+  : contacts.filter(c => c.contact_type === 'email');
+const phoneContacts = contacts.filter(c => c.contact_type === 'phone');
+
+// ────────────────────────────────────────────────────────────────
+// Scan log
+// ────────────────────────────────────────────────────────────────
+const breachCount = (d.breaches || []).length;
+const LOG = [
+  `› Target: ${d.full_name}`,
+  d.organization ? `› Org: ${d.organization}` : `› No org provided`,
+  d.location     ? `› Location: ${d.location}` : `› No location provided`,
+  '› Firing concurrent API queries…',
+  `› GitHub: ${(d.api_sources||{}).github ? 'HIT' : 'miss'}`,
+  `› SerpApi: ${(d.api_sources||{}).serpapi ? 'HIT' : 'miss'}`,
+  `› LeakCheck: ${(d.api_sources||{}).leakcheck ? 'HIT' : 'miss'}`,
+  `› Shodan: ${(d.api_sources||{}).shodan ? 'HIT' : 'miss'}`,
+  `› IntelX: ${(d.api_sources||{}).intelx ? 'HIT' : 'miss'}`,
+  `› ${d.matched_profiles.length} profile(s) confirmed`,
+  `› ${emailContacts.length} email(s) discovered`,
+  `› ${phoneContacts.length} phone(s) extracted`,
+  `› ${breachCount} breach record(s)`,
+  `› Confidence: ${d.confidence_score}%`,
+  `› Exposure score: ${d.exposure_score}/100`,
+  `› Risk level: ${d.risk_level}`,
+  `✔ Scan complete — ${d.sources_checked} sources checked`,
+];
+const logEl = document.getElementById('scan-log');
+LOG.forEach((line, i) => {
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  const isLast = i === LOG.length - 1;
+  el.style.color = isLast ? '#34d399' : (line.includes('HIT') ? '#38bdf8' : '');
+  el.textContent = line;
+  logEl.appendChild(el);
+  setTimeout(() => el.classList.add('vis'), 150 + i * 110);
+});
+
+// ────────────────────────────────────────────────────────────────
+// Meta + Header
+// ────────────────────────────────────────────────────────────────
+try {
+  document.getElementById('meta-id').textContent = d.scan_id;
+  initWebSocket(d.scan_id);
+  document.getElementById('meta-ts').textContent = new Date(d.timestamp).toLocaleString();
+  document.getElementById('hdr-name').textContent = d.full_name;
+  if (d.location)     document.getElementById('hdr-location').textContent = '📍 ' + d.location;
+  if (d.organization) document.getElementById('hdr-org').textContent      = '🏢 ' + d.organization;
+  document.getElementById('hdr-id').textContent = 'ID: ' + d.scan_id;
+} catch(e) { console.error('[EDFP] header error:', e); }
+
+// ────────────────────────────────────────────────────────────────
+// Score rings
+// ────────────────────────────────────────────────────────────────
+function setRing(id, val, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const deg = (val / 100) * 360;
+  el.style.background = `conic-gradient(${color} ${deg}deg, rgba(56,189,248,0.06) ${deg}deg)`;
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setWidth(id, pct) {
+  const el = document.getElementById(id);
+  if (el) el.style.width = pct + '%';
+}
+
+// Run immediately — no setTimeout needed, script is at bottom of body
+(function renderAll() {
+  try {
+    // Score rings
+    const riskColor = d.risk_level === 'HIGH' ? '#ef4444' : d.risk_level === 'MODERATE' ? '#facc15' : '#34d399';
+    setText('conf-num', d.confidence_score + '%');
+    setRing('conf-ring', d.confidence_score, '#38bdf8');
+    const expEl = document.getElementById('exp-num');
+    if (expEl) { expEl.textContent = d.exposure_score; expEl.style.color = riskColor; }
+    setRing('exp-ring', d.exposure_score, riskColor);
+    const badge = document.getElementById('risk-badge');
+    if (badge) { badge.textContent = d.risk_level; badge.className = `risk-badge r-${d.risk_level}`; }
+  } catch(e) { console.error('[EDFP] rings error:', e); }
+
+  try {
+    // Identity Summary bars
+    const pc = (d.matched_profiles || []).length;
+    const ec = (d.probable_emails || emailContacts || []).length;
+    const ph = phoneContacts.length;
+
+    setText('sum-profiles', pc);  setWidth('bar-profiles', Math.min(100, pc * 10));
+    setText('sum-emails',   ec);  setWidth('bar-emails',   Math.min(100, ec * 18));
+    setText('sum-phones',   ph);  setWidth('bar-phones',   Math.min(100, ph * 25));
+    setText('sum-breaches', breachCount); setWidth('bar-breaches', Math.min(100, breachCount * 20));
+    setText('sum-conf',     d.confidence_score + '%'); setWidth('bar-conf', d.confidence_score);
+    setText('sum-sources',  d.sources_checked);
+  } catch(e) { console.error('[EDFP] summary error:', e); }
+})();
+
+// ────────────────────────────────────────────────────────────────
+// Contacts panel — emails + phones, real data only
+// ────────────────────────────────────────────────────────────────
+const contactsEl = document.getElementById('contacts-list');
+const allContacts = (d.discovered_contacts || []);
+document.getElementById('contacts-count').textContent = allContacts.length;
+
+if (allContacts.length === 0) {
+  contactsEl.innerHTML = '<div class="empty-state">No contacts discovered.<br/>Provide email or org to improve results.</div>';
+} else {
+  contactsEl.innerHTML = '';
+  allContacts.forEach(c => {
+    const isEmail = c.contact_type === 'email';
+    const confColor = c.confidence >= 80 ? '#34d399' : c.confidence >= 60 ? '#facc15' : '#ef4444';
+    const badgeCls  = isEmail ? 'ct-email' : 'ct-phone';
+    const icon      = isEmail ? '✉' : '☎';
+    const copyBtn   = `<button onclick="navigator.clipboard.writeText('${c.value}')" title="Copy"
+      class="mono text-[0.5rem] text-[#4a6080] border border-[#142030] px-1 hover:text-[#38bdf8] hover:border-[#38bdf8]/30 transition-colors ml-auto flex-shrink-0">⧉</button>`;
+    contactsEl.innerHTML += `
+      <div class="contact-row">
+        <span class="contact-type-badge ${badgeCls}">${icon} ${c.contact_type.toUpperCase()}</span>
+        <div class="flex-1 min-w-0">
+          <p class="mono text-[0.68rem] text-[#c8ddf0] truncate">${c.value}</p>
+          <p class="mono text-[0.55rem] text-[#4a6080] truncate">${c.source}</p>
+        </div>
+        <span class="mono text-[0.6rem] flex-shrink-0" style="color:${confColor}">${c.confidence}%</span>
+        ${copyBtn}
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// Exposure surface
+// ────────────────────────────────────────────────────────────────
+const expSurface = document.getElementById('exposure-surface');
+expSurface.innerHTML = '';
+if (!d.exposure_points || d.exposure_points.length === 0) {
+  expSurface.innerHTML = '<div class="empty-state col-span-2">No exposure data.</div>';
+} else {
+  d.exposure_points.forEach(ep => {
+    const col = scoreColor(ep.score);
+    const lbl = FACTOR_LABELS[ep.factor] || ep.factor;
+    expSurface.innerHTML += `
+      <div>
+        <div class="flex justify-between items-baseline mb-1 gap-2">
+          <span class="mono text-[0.6rem] text-[#4a6080]">${lbl}</span>
+          <span class="mono text-[0.62rem] flex-shrink-0" style="color:${col}">${Math.round(ep.score)}</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:0%;background:${col}" data-w="${ep.score}"></div>
+        </div>
+        <p class="mono text-[0.55rem] text-[#3a5068] mt-1 leading-relaxed">${ep.description}</p>
+      </div>`;
+  });
+  // animate bars
+  setTimeout(() => {
+    document.querySelectorAll('[data-w]').forEach(el => el.style.width = el.dataset.w + '%');
+  }, 500);
+}
+
+// ────────────────────────────────────────────────────────────────
+// Profiles grid — real only, every card has a direct link
+// ────────────────────────────────────────────────────────────────
+const profilesGrid = document.getElementById('profiles-grid');
+const profCount    = d.matched_profiles.length;
+document.getElementById('profiles-count').textContent = profCount + ' found';
+
+if (profCount === 0) {
+  profilesGrid.innerHTML = '<div class="empty-state col-span-2">No profiles confirmed by real APIs.</div>';
+} else {
+  profilesGrid.innerHTML = '';
+  d.matched_profiles.forEach(p => {
+    const icon    = CAT_ICONS[p.category]  || '🔗';
+    const ciCls   = CAT_CI_CLS[p.category] || 'ci-social';
+    const cColor  = p.confidence >= 80 ? '#34d399' : p.confidence >= 60 ? '#facc15' : '#ef4444';
+    const bio     = (p.bio_snippet || '').substring(0, 70);
+    const linkRow = p.profile_url
+      ? `<a href="${p.profile_url}" target="_blank" rel="noopener"
+           class="mono text-[0.52rem] text-[#38bdf8]/55 hover:text-[#38bdf8] block mt-1 truncate">↗ ${p.profile_url.replace(/https?:\/\//,'').substring(0,40)}</a>`
+      : '';
+    profilesGrid.innerHTML += `
+      <div class="profile-card">
+        <div class="cat-icon ${ciCls}">${icon}</div>
+        <div class="flex-1 min-w-0">
+          <p class="mono text-[0.68rem] text-[#c8ddf0] font-medium truncate">${p.platform}</p>
+          <p class="mono text-[0.58rem] text-[#4a6080] truncate">@${p.username}</p>
+          ${bio ? `<p class="mono text-[0.53rem] text-[#3a5068] mt-0.5 leading-relaxed line-clamp-2">${bio}</p>` : ''}
+          ${linkRow}
+        </div>
+        <div class="text-right flex-shrink-0">
+          <span class="mono text-[0.62rem]" style="color:${cColor}">${p.confidence}%</span>
+        </div>
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// Breach records
+// ────────────────────────────────────────────────────────────────
+if (breachCount > 0) {
+  document.getElementById('breach-card').style.display = '';
+  document.getElementById('breach-count-badge').textContent = breachCount + ' confirmed';
+  const bl = document.getElementById('breach-list');
+  bl.innerHTML = '';
+  (d.breaches || []).forEach(b => {
+    const tags = (b.data_classes || []).map(dc =>
+      `<span class="dc-tag">${dc}</span>`).join('');
+    bl.innerHTML += `
+      <div class="breach-item">
+        <p class="mono text-[0.7rem] text-red-300 font-semibold">${b.source}</p>
+        <p class="mono text-[0.58rem] text-[#5a7898] mt-0.5">${b.date || 'Date unknown'} · verified</p>
+        ${tags ? `<div class="flex flex-wrap gap-1 mt-2">${tags}</div>` : ''}
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// Shodan results
+// ────────────────────────────────────────────────────────────────
+const shodanResults = d.shodan_results || [];
+if (shodanResults.length > 0) {
+  document.getElementById('shodan-card').style.display = '';
+  document.getElementById('shodan-count').textContent = shodanResults.length + ' hosts';
+  const sl = document.getElementById('shodan-list');
+  shodanResults.forEach(s => {
+    const host  = s.hostnames && s.hostnames.length ? s.hostnames[0] : s.ip;
+    const ports = s.ports && s.ports.length ? s.ports.join(', ') : '—';
+    const vulns = s.vulns && s.vulns.length
+      ? `<p class="mono text-[0.55rem] text-red-400 mt-1">⚠ ${s.vulns.length} CVE(s): ${s.vulns.slice(0,3).join(', ')}</p>`
+      : '';
+    sl.innerHTML += `
+      <div class="border border-orange-500/20 bg-orange-500/5 p-3">
+        <p class="mono text-[0.68rem] text-orange-300 font-medium">${host}</p>
+        <p class="mono text-[0.57rem] text-[#5a7898] mt-0.5">IP: ${s.ip} · Ports: ${ports}</p>
+        ${s.country ? `<p class="mono text-[0.55rem] text-[#4a6080] mt-0.5">Country: ${s.country}</p>` : ''}
+        ${vulns}
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// IntelX results
+// ────────────────────────────────────────────────────────────────
+const ixResults = d.intelx_results || [];
+if (ixResults.length > 0) {
+  document.getElementById('intelx-card').style.display = '';
+  document.getElementById('intelx-count').textContent = ixResults.length + ' records';
+  const il = document.getElementById('intelx-list');
+  ixResults.forEach(r => {
+    il.innerHTML += `
+      <div class="border border-indigo-500/20 bg-indigo-500/4 p-3">
+        <p class="mono text-[0.65rem] text-indigo-300 font-medium">${r.bucket}</p>
+        <p class="mono text-[0.57rem] text-[#5a7898] mt-0.5 truncate">${r.name || '—'}</p>
+        ${r.date ? `<p class="mono text-[0.53rem] text-[#4a6080] mt-0.5">${new Date(r.date).toLocaleDateString()}</p>` : ''}
+      </div>`;
+  });
+}
+
+
+// ────────────────────────────────────────────────────────────────
+// Phone Analysis panel
+// ────────────────────────────────────────────────────────────────
+const phoneAnalyses = d.phone_analyses || [];
+if (phoneAnalyses.length > 0) {
+  document.getElementById('phone-card').style.display = '';
+  document.getElementById('phone-count').textContent = phoneAnalyses.length + ' number(s)';
+  const pl = document.getElementById('phone-list');
+  pl.innerHTML = '';
+  phoneAnalyses.forEach(p => {
+    const sourceLabel = p.source === 'whoisxml'
+      ? '<span style="color:#34d399;border:1px solid rgba(52,211,153,.3)" class="mono text-[0.5rem] px-1.5 py-0.5 rounded">✓ WHOISXML VERIFIED</span>'
+      : '<span style="color:#fbbf24;border:1px solid rgba(251,191,36,.3)" class="mono text-[0.5rem] px-1.5 py-0.5 rounded">≈ E.164 METADATA</span>';
+    const confColor = p.confidence >= 80 ? '#34d399' : p.confidence >= 60 ? '#facc15' : '#ef4444';
+    const lineIcon = p.line_type === 'Mobile' ? '📱' : p.line_type === 'VoIP' ? '💻' : '☎';
+    pl.innerHTML += `
+      <div style="background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.15);border-radius:4px;padding:10px 12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span class="mono" style="color:#34d399;font-size:0.8rem;font-weight:600;">${p.number_e164 || p.number_raw}</span>
+          ${sourceLabel}
+          <span class="mono" style="color:${confColor};font-size:0.6rem;margin-left:auto;">${p.confidence}% conf</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Country</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${p.country || '—'} <span style="color:#4a6080">${p.iso_code || ''}</span></p>
+          </div>
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Carrier</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${p.carrier || p.operator_est || '—'}</p>
+          </div>
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Line Type</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${lineIcon} ${p.line_type || '—'}</p>
+          </div>
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Network</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${p.network_type || '—'}</p>
+          </div>
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Region</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${p.region || '—'}</p>
+          </div>
+          <div>
+            <p class="mono" style="font-size:0.52rem;color:#4a6080;text-transform:uppercase;letter-spacing:1px;">Timezone</p>
+            <p class="mono" style="font-size:0.65rem;color:#c8ddf0;">${p.tz_estimate || '—'}</p>
+          </div>
+        </div>
+        <p class="mono" style="font-size:0.5rem;color:#3a5068;margin-top:6px;line-height:1.5;">${p.disclaimer}</p>
+      </div>`;
+  });
+  // Update phones bar with real count
+  document.getElementById('sum-phones').textContent = phoneAnalyses.length;
+  document.getElementById('bar-phones').style.width = Math.min(100, phoneAnalyses.length * 25) + '%';
+}
+
+// ────────────────────────────────────────────────────────────────
+// URLScan results
+// ────────────────────────────────────────────────────────────────
+const urlscanResults = d.urlscan_results || [];
+if (urlscanResults.length > 0) {
+  document.getElementById('urlscan-card').style.display = '';
+  document.getElementById('urlscan-count').textContent = urlscanResults.length + ' scans';
+  const ul = document.getElementById('urlscan-list');
+  ul.innerHTML = '';
+  urlscanResults.forEach(r => {
+    const ts = r.timestamp ? new Date(r.timestamp).toLocaleDateString() : '—';
+    const domainDisplay = r.domain || (r.url ? new URL(r.url).hostname : '—');
+    ul.innerHTML += `
+      <div style="border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.04);padding:10px 12px;border-radius:4px;">
+        <p class="mono" style="font-size:0.65rem;color:#fbbf24;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r.url}">${domainDisplay}</p>
+        <p class="mono" style="font-size:0.55rem;color:#5a7898;margin-top:2px;">IP: ${r.ip || '—'} · ${r.country || '—'}</p>
+        <p class="mono" style="font-size:0.53rem;color:#4a6080;margin-top:2px;">Scanned: ${ts} · ${r.visibility || 'public'}</p>
+        ${r.url ? `<a href="${r.url}" target="_blank" class="mono" style="font-size:0.5rem;color:#38bdf8;text-decoration:none;margin-top:3px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">↗ ${r.url}</a>` : ''}
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// Censys host results
+// ────────────────────────────────────────────────────────────────
+const censysResults = d.censys_results || [];
+if (censysResults.length > 0) {
+  document.getElementById('censys-card').style.display = '';
+  document.getElementById('censys-count').textContent = censysResults.length + ' hosts';
+  const cl2 = document.getElementById('censys-list');
+  cl2.innerHTML = '';
+  censysResults.forEach(r => {
+    const services = r.services && r.services.length ? r.services.slice(0,6).join(', ') : '—';
+    cl2.innerHTML += `
+      <div style="border:1px solid rgba(14,165,233,.2);background:rgba(14,165,233,.04);padding:10px 12px;border-radius:4px;">
+        <p class="mono" style="font-size:0.68rem;color:#38bdf8;font-weight:600;">${r.ip}</p>
+        <p class="mono" style="font-size:0.57rem;color:#5a7898;margin-top:2px;">${r.org || '—'}</p>
+        <p class="mono" style="font-size:0.55rem;color:#4a6080;margin-top:1px;">${r.country || '—'} · ASN ${r.asn || '—'}</p>
+        <p class="mono" style="font-size:0.53rem;color:#3a5068;margin-top:2px;">Ports: ${services}</p>
+        ${r.name ? `<p class="mono" style="font-size:0.52rem;color:#4a6080;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.name}">${r.name}</p>` : ''}
+      </div>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// crt.sh subdomains in sidebar
+// ────────────────────────────────────────────────────────────────
+const certs = d.cert_records || [];
+if (certs.length > 0) {
+  document.getElementById('crt-section').style.display = '';
+  const cl = document.getElementById('crt-list');
+  certs.slice(0, 20).forEach(c => {
+    cl.innerHTML += `<p class="mono text-[0.57rem] text-[#3a5068] truncate hover:text-[#38bdf8] cursor-default" title="${c.domain}">· ${c.domain}</p>`;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+// API source badges — updated to match actual keys
+// ────────────────────────────────────────────────────────────────
+const src = d.api_sources || {};
+const API_MAP = [
+  { key: 'github',   label: 'GitHub'    },
+  { key: 'leakcheck',label: 'LeakCheck' },
+  { key: 'serpapi',  label: 'SerpApi'   },
+  { key: 'shodan',   label: 'Shodan'    },
+  { key: 'intelx',   label: 'IntelX'    },
+  { key: 'hunter',   label: 'Hunter.io' },
+  { key: 'emailrep', label: 'EmailRep'  },
+  { key: 'gravatar',         label: 'Gravatar'  },
+  { key: 'crt_sh',   label: 'crt.sh'   },
+  { key: 'abstract_email', label: 'AbstractAPI' },
+  { key: 'whoisxml',  label: 'WhoisXML'  },
+  { key: 'urlscan',   label: 'URLScan'   },
+  { key: 'censys',    label: 'Censys'    },
+];
+document.getElementById('api-sources').innerHTML = API_MAP.map(a =>
+  `<span class="api-pill ${src[a.key] ? 'api-on' : 'api-off'}">${src[a.key] ? '✔' : '○'} ${a.label}</span>`
+).join('');
+
+// ────────────────────────────────────────────────────────────────
+// D3 graph
+// ────────────────────────────────────────────────────────────────
+function buildGraph(rawNodes, rawEdges) {
+  if (!rawNodes || rawNodes.length === 0) {
+    document.getElementById('graph-svg').style.display = 'none';
+    document.getElementById('graph-empty').style.display = '';
+    return;
+  }
+
+  const svgEl = document.getElementById('graph-svg');
+  const W = svgEl.getBoundingClientRect().width || 680;
+  const H = 360;
+  const svg = d3.select('#graph-svg').attr('viewBox', `0 0 ${W} ${H}`);
+  svg.append('rect').attr('width', W).attr('height', H).attr('fill', 'transparent');
+
+  const tip = document.getElementById('tip');
+  const nodes = rawNodes.map(n => ({ ...n }));
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const edges = rawEdges
+    .filter(e => nodeMap[e.source] && nodeMap[e.target])
+    .map(e => ({ ...e, source: nodeMap[e.source], target: nodeMap[e.target] }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(n => n.id).distance(d => {
+      if (d.relation === 'owns') return 85;
+      if (d.relation === 'found_in') return 100;
+      return 115;
+    }).strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-260))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('collision', d3.forceCollide(n => (NODE_RADII[n.node_type] || 12) + 8));
+
+  // Edges
+  const link = svg.append('g')
+    .selectAll('line').data(edges).join('line')
+    .attr('stroke', d => {
+      if (d.relation === 'found_in') return 'rgba(239,68,68,0.25)';
+      if (d.relation === 'indexed_in') return 'rgba(129,140,248,0.25)';
+      if (d.relation === 'operates')  return 'rgba(249,115,22,0.25)';
+      return 'rgba(56,189,248,0.18)';
+    })
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', d => d.relation === 'associated_with' ? '3,3' : 'none');
+
+  // Edge relation labels
+  const linkLbl = svg.append('g')
+    .selectAll('text').data(edges).join('text')
+    .attr('fill', 'rgba(56,189,248,0.25)')
+    .attr('font-family', 'JetBrains Mono, monospace')
+    .attr('font-size', '6.5px')
+    .text(d => d.relation);
+
+  // Node groups
+  const node = svg.append('g')
+    .selectAll('g').data(nodes).join('g')
+    .call(d3.drag()
+      .on('start', (ev, n) => { if (!ev.active) sim.alphaTarget(0.3).restart(); n.fx = n.x; n.fy = n.y; })
+      .on('drag',  (ev, n) => { n.fx = ev.x; n.fy = ev.y; })
+      .on('end',   (ev, n) => { if (!ev.active) sim.alphaTarget(0); n.fx = null; n.fy = null; })
+    );
+
+  const r = n => NODE_RADII[n.node_type] || 12;
+
+  // Glow ring
+  node.append('circle')
+    .attr('r', n => r(n) + 5)
+    .attr('fill', 'none')
+    .attr('stroke', n => NODE_COLORS[n.node_type] + '20')
+    .attr('stroke-width', 1.5);
+
+  // Main circle
+  node.append('circle')
+    .attr('r', r)
+    .attr('fill', n => NODE_COLORS[n.node_type] + '18')
+    .attr('stroke', n => NODE_COLORS[n.node_type])
+    .attr('stroke-width', 1.5);
+
+  // Icon inside
+  node.append('text')
+    .attr('text-anchor', 'middle').attr('dy', '0.35em')
+    .attr('fill', n => NODE_COLORS[n.node_type])
+    .attr('font-size', n => n.node_type === 'target' ? '11px' : '8px')
+    .text(n => ({
+      target:'⊕', email:'@', social:'◈', developer:'⌥',
+      document:'▤', breach:'⚠', cert:'🔒', infrastructure:'⬡', intelligence:'◉',
+    }[n.node_type] || '·'));
+
+  // Label below
+  node.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', n => r(n) + 13)
+    .attr('fill', '#7a9ab8')
+    .attr('font-family', 'JetBrains Mono, monospace')
+    .attr('font-size', n => n.node_type === 'target' ? '9px' : '7px')
+    .text(n => n.label.length > 20 ? n.label.slice(0, 18) + '…' : n.label);
+
+  // Tooltip
+  node
+    .on('mousemove', (ev, n) => {
+      let html = `<b style="color:${NODE_COLORS[n.node_type]}">${n.label}</b><br/>
+                  <span style="color:#4a6080">type: ${n.node_type}</span>`;
+      if (n.metadata.confidence) html += `<br/>confidence: ${n.metadata.confidence}%`;
+      if (n.metadata.username)   html += `<br/>handle: @${n.metadata.username}`;
+      if (n.metadata.pattern)    html += `<br/>source: ${n.metadata.pattern}`;
+      if (n.metadata.data)       html += `<br/>data: ${n.metadata.data}`;
+      if (n.metadata.ip)         html += `<br/>ip: ${n.metadata.ip}`;
+      if (n.metadata.ports)      html += `<br/>ports: ${n.metadata.ports}`;
+      if (n.metadata.vulns)      html += `<br/>cves: ${n.metadata.vulns}`;
+      if (n.metadata.bio)        html += `<br/><span style="color:#4a6080">${n.metadata.bio.substring(0,80)}</span>`;
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top  = (ev.clientY + 14) + 'px';
+    })
+    .on('mouseleave', () => { tip.style.display = 'none'; });
+
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    linkLbl
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2);
+    node.attr('transform', n => `translate(${n.x},${n.y})`);
+  });
+}
+
+buildGraph(d.graph_nodes, d.graph_edges);
+
+// ────────────────────────────────────────────────────────────────
+// Export
+// ────────────────────────────────────────────────────────────────
+function downloadPDF() {
+  if (_currentScanId) window.open(`/api/report/pdf/${_currentScanId}`, '_blank');
+}
+
+function initWebSocket(scanId) {
+  _currentScanId = scanId;
+  document.getElementById('pdf-btn').style.display = '';
+  // Update defensive link with scan_id
+  const defLink = document.querySelector('a[href="/defensive"]');
+  if (defLink) defLink.href = `/defensive?scan_id=${scanId}`;
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `edfp_${d.scan_id}.json`,
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>

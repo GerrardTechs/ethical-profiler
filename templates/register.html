@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar — EDFP</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --accent: #58a6ff; --accent2: #388bfd; --text: #e6edf3;
+    --text-muted: #8b949e; --danger: #f85149; --success: #3fb950;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2.5rem 2rem; width: 100%; max-width: 420px; }
+  .logo { text-align: center; margin-bottom: 2rem; }
+  .logo-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #3fb95022, #3fb95044); border: 1px solid #3fb95055; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: .75rem; }
+  .logo-icon svg { width: 24px; height: 24px; fill: var(--success); }
+  .logo h1 { font-size: 1.25rem; font-weight: 600; }
+  .logo p { font-size: .8rem; color: var(--text-muted); margin-top: .25rem; }
+  .form-group { margin-bottom: 1rem; }
+  label { display: block; font-size: .8rem; color: var(--text-muted); margin-bottom: .4rem; font-weight: 500; }
+  input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .65rem .9rem; color: var(--text); font-size: .9rem; transition: border-color .15s; outline: none; }
+  input:focus { border-color: var(--accent); }
+  input.valid { border-color: var(--success); }
+  input.invalid { border-color: var(--danger); }
+  .hint { font-size: .75rem; color: var(--text-muted); margin-top: .3rem; }
+  .hint.ok { color: var(--success); }
+  .hint.err { color: var(--danger); }
+  .btn { width: 100%; padding: .7rem; background: var(--accent2); color: #fff; border: none; border-radius: 8px; font-size: .95rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .btn:hover { background: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .link-row { text-align: center; font-size: .85rem; color: var(--text-muted); }
+  .link-row a { color: var(--accent); text-decoration: none; }
+  .alert { padding: .65rem .9rem; border-radius: 8px; font-size: .85rem; margin-bottom: 1rem; display: none; }
+  .alert.error { background: #f8514920; border: 1px solid #f8514950; color: var(--danger); display: block; }
+  .alert.success { background: #3fb95020; border: 1px solid #3fb95050; color: var(--success); display: block; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff44; border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .strength-bar { height: 4px; border-radius: 2px; background: var(--border); margin-top: .4rem; overflow: hidden; }
+  .strength-fill { height: 100%; border-radius: 2px; transition: width .3s, background .3s; width: 0%; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    </div>
+    <h1>Buat Akun</h1>
+    <p>Daftar untuk mulai menggunakan EDFP</p>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <form id="regForm">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input id="username" type="text" placeholder="johndoe" minlength="3" maxlength="32" autocomplete="username" required>
+      <div class="hint" id="usernameHint">Min. 3 karakter, huruf/angka/underscore</div>
+    </div>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="••••••••" minlength="8" autocomplete="new-password" required>
+      <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+      <div class="hint" id="passHint">Min. 8 karakter</div>
+    </div>
+    <div class="form-group">
+      <label for="confirm">Konfirmasi Password</label>
+      <input id="confirm" type="password" placeholder="••••••••" required>
+      <div class="hint" id="confirmHint"></div>
+    </div>
+    <button class="btn" type="submit" id="submitBtn">Buat Akun</button>
+  </form>
+
+  <hr class="divider">
+  <div class="link-row">Sudah punya akun? <a href="/login">Masuk</a></div>
+</div>
+
+<script>
+  const alertEl = document.getElementById('alert');
+  const btn = document.getElementById('submitBtn');
+
+  // Password strength
+  document.getElementById('password').addEventListener('input', function() {
+    const v = this.value;
+    const fill = document.getElementById('strengthFill');
+    const hint = document.getElementById('passHint');
+    let score = 0;
+    if (v.length >= 8) score++;
+    if (v.length >= 12) score++;
+    if (/[A-Z]/.test(v)) score++;
+    if (/[0-9]/.test(v)) score++;
+    if (/[^A-Za-z0-9]/.test(v)) score++;
+    const colors = ['#f85149','#f85149','#d29922','#d29922','#3fb950'];
+    const labels = ['Sangat lemah','Lemah','Cukup','Kuat','Sangat kuat'];
+    fill.style.width = (score / 5 * 100) + '%';
+    fill.style.background = colors[score - 1] || '#30363d';
+    hint.textContent = score > 0 ? labels[score - 1] : 'Min. 8 karakter';
+    hint.className = 'hint' + (score >= 4 ? ' ok' : score >= 2 ? '' : ' err');
+    checkConfirm();
+  });
+
+  function checkConfirm() {
+    const p = document.getElementById('password').value;
+    const c = document.getElementById('confirm').value;
+    const h = document.getElementById('confirmHint');
+    if (!c) { h.textContent = ''; return; }
+    if (p === c) { h.textContent = '✓ Password cocok'; h.className = 'hint ok'; }
+    else { h.textContent = 'Password tidak cocok'; h.className = 'hint err'; }
+  }
+  document.getElementById('confirm').addEventListener('input', checkConfirm);
+
+  // Username validation
+  document.getElementById('username').addEventListener('input', function() {
+    const v = this.value;
+    const h = document.getElementById('usernameHint');
+    const ok = /^[a-zA-Z0-9_]{3,32}$/.test(v);
+    this.className = v ? (ok ? 'valid' : 'invalid') : '';
+    h.textContent = ok ? '✓ Username valid' : 'Min. 3 karakter, huruf/angka/underscore saja';
+    h.className = 'hint' + (ok ? ' ok' : v ? ' err' : '');
+  });
+
+  document.getElementById('regForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    alertEl.className = 'alert';
+
+    const password = document.getElementById('password').value;
+    const confirm  = document.getElementById('confirm').value;
+    if (password !== confirm) {
+      alertEl.className = 'alert error';
+      alertEl.textContent = 'Password tidak cocok!';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Mendaftar...';
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          email:    document.getElementById('email').value.trim(),
+          password,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alertEl.className = 'alert success';
+        alertEl.textContent = 'Akun berhasil dibuat! Mengalihkan...';
+        setTimeout(() => window.location.href = '/', 1200);
+      } else {
+        alertEl.className = 'alert error';
+        alertEl.textContent = data.detail || 'Pendaftaran gagal.';
+        btn.disabled = false;
+        btn.textContent = 'Buat Akun';
+      }
+    } catch {
+      alertEl.className = 'alert error';
+      alertEl.textContent = 'Koneksi gagal. Coba lagi.';
+      btn.disabled = false;
+      btn.textContent = 'Buat Akun';
+    }
+  });
+</script>
+</body>
+</html>

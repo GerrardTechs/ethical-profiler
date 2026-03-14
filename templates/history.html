@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scan History — EDFP</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{--bg:#060d1a;--surface:#0b1525;--card:#0d1a2d;--border:#142030;--accent:#38bdf8;--warn:#facc15;--danger:#ef4444;--success:#34d399;--muted:#4a6080;--text:#c8ddf0;}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+    .mono{font-family:'JetBrains Mono',monospace;}
+    .card{background:var(--card);border:1px solid var(--border);}
+    .label-xs{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+    .risk-HIGH{color:#ef4444;border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.08);}
+    .risk-MODERATE{color:#facc15;border-color:rgba(250,204,21,.3);background:rgba(250,204,21,.08);}
+    .risk-LOW{color:#34d399;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08);}
+    input,select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:.75rem;outline:none;}
+    input:focus,select:focus{border-color:var(--accent);}
+    .btn{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:var(--accent);padding:6px 14px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;transition:all .2s;}
+    .btn:hover{background:rgba(56,189,248,.2);}
+    .btn-red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444;}
+    .btn-red:hover{background:rgba(239,68,68,.2);}
+    .btn-green{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3);color:#34d399;}
+    .btn-green:hover{background:rgba(52,211,153,.2);}
+    .row{border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer;}
+    .row:hover{background:rgba(56,189,248,.04);}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:var(--bg);}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Nav -->
+<div style="background:#0b1525;border-bottom:1px solid #142030;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span class="label-xs" style="color:#38bdf8;font-size:.75rem;">📂 SCAN HISTORY</span>
+    <span class="mono" style="font-size:.55rem;color:#4a6080;">ETHICAL DIGITAL FOOTPRINT PROFILER</span>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/" class="btn" style="text-decoration:none;">⟵ HOME</a>
+    <a href="/dashboard" class="btn" style="text-decoration:none;">📊 DASHBOARD</a>
+    <a href="/defensive" class="btn btn-green" style="text-decoration:none;">🛡 DEFENSIVE</a>
+  </div>
+</div>
+
+<div style="max-width:1200px;margin:0 auto;padding:20px;">
+
+  <!-- Stats bar -->
+  <div id="stats-bar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+    <div class="card" style="padding:12px 16px;">
+      <div class="label-xs">Total Scans</div>
+      <div id="stat-total" class="mono" style="font-size:1.4rem;color:#38bdf8;margin-top:4px;">—</div>
+    </div>
+    <div class="card" style="padding:12px 16px;">
+      <div class="label-xs">High Risk Found</div>
+      <div id="stat-high" class="mono" style="font-size:1.4rem;color:#ef4444;margin-top:4px;">—</div>
+    </div>
+    <div class="card" style="padding:12px 16px;">
+      <div class="label-xs">Total Breaches</div>
+      <div id="stat-breach" class="mono" style="font-size:1.4rem;color:#facc15;margin-top:4px;">—</div>
+    </div>
+    <div class="card" style="padding:12px 16px;">
+      <div class="label-xs">Last Scan</div>
+      <div id="stat-last" class="mono" style="font-size:.8rem;color:#34d399;margin-top:4px;">—</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card" style="padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span class="label-xs" style="color:#4a6080;">FILTER:</span>
+    <input id="searchInput" type="text" placeholder="Search name / org / email…" style="flex:1;min-width:180px;" oninput="loadHistory()"/>
+    <select id="riskFilter" onchange="loadHistory()">
+      <option value="">All Risk Levels</option>
+      <option value="HIGH">HIGH</option>
+      <option value="MODERATE">MODERATE</option>
+      <option value="LOW">LOW</option>
+    </select>
+    <button class="btn" onclick="loadHistory()">↺ REFRESH</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="overflow:hidden;">
+    <div style="padding:10px 16px;border-bottom:1px solid #142030;display:flex;align-items:center;gap:8px;">
+      <span class="label-xs">Scan Records</span>
+      <span id="count-badge" class="mono" style="font-size:.55rem;color:#4a6080;margin-left:auto;">0 records</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#0a1628;border-bottom:1px solid #142030;">
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Name</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Organization</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Risk</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Score</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Profiles</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Emails</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Breaches</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Date</th>
+            <th class="label-xs" style="padding:8px 12px;text-align:left;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr><td colspan="9" style="padding:24px;text-align:center;color:#4a6080;font-size:.75rem;">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+    <span id="page-info" class="mono" style="font-size:.65rem;color:#4a6080;">Page 1</span>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" id="prevBtn" onclick="changePage(-1)" disabled>← PREV</button>
+      <button class="btn" id="nextBtn" onclick="changePage(1)">NEXT →</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentPage = 0;
+const PAGE_SIZE = 15;
+
+async function loadStats() {
+  const r = await fetch('/api/history/stats');
+  const d = await r.json();
+  document.getElementById('stat-total').textContent  = d.total_scans ?? '0';
+  document.getElementById('stat-high').textContent   = d.high_risk   ?? '0';
+  document.getElementById('stat-breach').textContent = d.total_breaches ?? '0';
+  const last = d.last_scan ? new Date(d.last_scan).toLocaleDateString() : '—';
+  document.getElementById('stat-last').textContent   = last;
+}
+
+async function loadHistory() {
+  const search = document.getElementById('searchInput').value;
+  const risk   = document.getElementById('riskFilter').value;
+  const offset = currentPage * PAGE_SIZE;
+
+  let url = `/api/history/?limit=15&offset=${offset}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (risk)   url += `&risk=${risk}`;
+
+  const r = await fetch(url);
+  const d = await r.json();
+  const scans = d.scans || [];
+
+  document.getElementById('count-badge').textContent = `${d.count} records`;
+  document.getElementById('page-info').textContent   = `Page ${currentPage + 1}`;
+  document.getElementById('prevBtn').disabled = currentPage === 0;
+  document.getElementById('nextBtn').disabled = scans.length < PAGE_SIZE;
+
+  const tbody = document.getElementById('history-tbody');
+  if (scans.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:24px;text-align:center;color:#4a6080;font-size:.75rem;">
+      No scans found. Run a scan from the <a href="/" style="color:#38bdf8;">homepage</a>.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = scans.map(s => {
+    const riskCls = `risk-${s.risk_level}`;
+    const date = new Date(s.created_at).toLocaleDateString();
+    return `
+      <tr class="row" onclick="openScan('${s.scan_id}')">
+        <td style="padding:8px 12px;">
+          <p class="mono" style="font-size:.75rem;color:#38bdf8;text-decoration:underline;text-decoration-style:dotted;cursor:pointer;">${esc(s.full_name)}</p>
+          ${s.location ? `<p class="mono" style="font-size:.6rem;color:#4a6080;">${esc(s.location)}</p>` : ''}
+        </td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.7rem;color:#4a6080;">${esc(s.organization || '—')}</td>
+        <td style="padding:8px 12px;">
+          <span class="mono ${riskCls}" style="font-size:.6rem;padding:2px 7px;border:1px solid;border-radius:2px;">${s.risk_level}</span>
+        </td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.75rem;color:#38bdf8;">${s.exposure_score}</td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.7rem;">${s.profiles_found}</td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.7rem;">${s.emails_found}</td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.7rem;color:${s.breaches_found > 0 ? '#ef4444' : '#4a6080'};">${s.breaches_found}</td>
+        <td style="padding:8px 12px;" class="mono" style="font-size:.65rem;color:#4a6080;">${date}</td>
+        <td style="padding:8px 12px;" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-green" style="padding:3px 8px;font-size:.55rem;" onclick="downloadPDF('${s.scan_id}')">⬇ PDF</button>
+            <a href="/defensive?scan_id=${s.scan_id}" class="btn" style="padding:3px 8px;font-size:.55rem;text-decoration:none;">🛡</a>
+            <button class="btn btn-red" style="padding:3px 8px;font-size:.55rem;" onclick="deleteScan('${s.scan_id}',this)">✕</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function openScan(scanId) {
+  // Load scan detail, store in sessionStorage, then go to dashboard
+  try {
+    const r = await fetch(`/api/history/${scanId}`);
+    if (r.ok) {
+      const data = await r.json();
+      sessionStorage.setItem('scanResult', JSON.stringify(data));
+    }
+  } catch(e) { /* fallback: dashboard will try query param */ }
+  window.location.href = `/dashboard?scan_id=${scanId}`;
+}
+
+async function downloadPDF(scanId) {
+  window.open(`/api/report/pdf/${scanId}`, '_blank');
+}
+
+async function deleteScan(scanId, btn) {
+  if (!confirm('Delete this scan from history?')) return;
+  btn.textContent = '…';
+  const r = await fetch(`/api/history/${scanId}`, {method: 'DELETE'});
+  if ((await r.json()).deleted) {
+    loadHistory();
+    loadStats();
+  }
+}
+
+function changePage(dir) {
+  currentPage = Math.max(0, currentPage + dir);
+  loadHistory();
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadStats();
+loadHistory();
+</script>
+</body>
+</html>
