@@ -204,8 +204,19 @@
   });
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    if (!confirm('Yakin ingin keluar?')) return;
+    const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+    await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
     window.location.href = '/login';
+  }
+
+function csrfFetch(url, opts = {}) {
+    const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+    const method = (opts.method || 'GET').toUpperCase();
+    if (!['GET','HEAD','OPTIONS'].includes(method)) {
+      opts.headers = { ...(opts.headers || {}), 'X-CSRF-Token': csrf };
+    }
+    return fetch(url, opts);
   }
 
   async function loadAll() {

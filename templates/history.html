@@ -204,10 +204,19 @@ async function downloadPDF(scanId) {
   window.open(`/api/report/pdf/${scanId}`, '_blank');
 }
 
-async function deleteScan(scanId, btn) {
+function csrfFetch(url, opts = {}) {
+    const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+    const method = (opts.method || 'GET').toUpperCase();
+    if (!['GET','HEAD','OPTIONS'].includes(method)) {
+      opts.headers = { ...(opts.headers || {}), 'X-CSRF-Token': csrf };
+    }
+    return fetch(url, opts);
+  }
+
+  async function deleteScan(scanId, btn) {
   if (!confirm('Delete this scan from history?')) return;
   btn.textContent = '…';
-  const r = await fetch(`/api/history/${scanId}`, {method: 'DELETE'});
+  const r = await csrfFetch(`/api/history/${scanId}`, {method: 'DELETE'});
   if ((await r.json()).deleted) {
     loadHistory();
     loadStats();

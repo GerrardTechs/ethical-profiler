@@ -169,8 +169,19 @@
   let allUsers = [];
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    if (!confirm('Yakin ingin keluar?')) return;
+    const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+    await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
     window.location.href = '/login';
+  }
+
+function csrfFetch(url, opts = {}) {
+    const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+    const method = (opts.method || 'GET').toUpperCase();
+    if (!['GET','HEAD','OPTIONS'].includes(method)) {
+      opts.headers = { ...(opts.headers || {}), 'X-CSRF-Token': csrf };
+    }
+    return fetch(url, opts);
   }
 
   async function loadUsers() {
@@ -242,7 +253,7 @@
     btn.disabled = true;
     btn.textContent = '...';
     try {
-      const res = await fetch(`/api/admin/users/${userId}/role`, {
+      const res = await csrfFetch(`/api/admin/users/${userId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: newRole }),
@@ -255,7 +266,7 @@
   async function toggleStatus(userId, newStatus, btn) {
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/admin/users/${userId}/status`, {
+      const res = await csrfFetch(`/api/admin/users/${userId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus }),
