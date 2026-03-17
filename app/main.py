@@ -134,9 +134,18 @@ async def defensive_page(request: Request):
     return templates.TemplateResponse("defensive.html", {"request": request, "user": user})
 
 
+@app.get("/db-viewer", include_in_schema=False)
+async def db_viewer_page(request: Request):
+    user = await get_current_user_optional(request)
+    if not user or user.get("role") != "admin":
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("db_viewer.html", {"request": request, "user": user})
+
+
 @app.get("/phone", include_in_schema=False)
 async def phone_page(request: Request):
     user = await get_current_user_optional(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("phone_dashboard.html", {"request": request, "user": user})
+

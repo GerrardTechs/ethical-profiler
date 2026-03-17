@@ -137,3 +137,117 @@ async def diagnostics(request: Request):
         "keys_total":     total,
         "keys":           keys,
     }
+
+
+# ── DB Viewer (admin only) ────────────────────────────────────────────────────
+
+@router.get("/db-viewer", response_class=HTMLResponse, include_in_schema=False)
+async def db_viewer_page(request: Request):
+    await require_admin(request)
+    return templates.TemplateResponse("db_viewer.html", {"request": request})
+
+
+@router.get("/api/admin/db/tables")
+async def db_list_tables(request: Request):
+    """List all tables and their row counts."""
+    await require_admin(request)
+    import aiosqlite
+    from app.db.database import DB_PATH
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        tables = [r["name"] for r in await cursor.fetchall()]
+        result = []
+        for t in tables:
+            c = await db.execute(f"SELECT COUNT(*) as n FROM [{t}]")
+            row = await c.fetchone()
+            result.append({"table": t, "rows": row["n"]})
+    return result
+
+
+@router.get("/api/admin/db/query")
+async def db_run_query(request: Request, table: str, limit: int = 100, offset: int = 0):
+    """Fetch rows from a table with pagination. Admin only."""
+    await require_admin(request)
+    import aiosqlite
+    from app.db.database import DB_PATH
+
+    # Whitelist — only allow querying known tables
+    ALLOWED = {"users", "sessions", "scan_history", "scan_details",
+                "username_cache", "api_usage_log"}
+    if table not in ALLOWED:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Table not allowed")
+
+    limit  = min(limit, 200)
+    offset = max(offset, 0)
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        # Get columns
+        cur = await db.execute(f"PRAGMA table_info([{table}])")
+        cols = [r["name"] for r in await cur.fetchall()]
+        # Get rows
+        cur = await db.execute(
+            f"SELECT * FROM [{table}] ORDER BY rowid DESC LIMIT ? OFFSET ?",
+            (limit, offset)
+        )
+        rows = [dict(r) for r in await cur.fetchall()]
+        # Total count
+        cur = await db.execute(f"SELECT COUNT(*) as n FROM [{table}]")
+        total = (await cur.fetchone())["n"]
+
+    # Mask password_hash for security
+    if table == "users":
+        for r in rows:
+            if "password_hash" in r:
+                r["password_hash"] = "••••••••••••"
+    # Truncate long JSON in scan_details
+    if table == "scan_details":
+        for r in rows:
+            if "result_json" in r and r["result_json"]:
+                r["result_json"] = r["result_json"][:300] + "…"
+
+    return {"table": table, "columns": cols, "rows": rows,
+            "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/api/admin/db/export/{table}")
+async def db_export_csv(table: str, request: Request):
+    """Export a table as CSV. Admin only."""
+    await require_admin(request)
+    import aiosqlite, csv, io
+    from app.db.database import DB_PATH
+    from fastapi.responses import StreamingResponse
+
+    ALLOWED = {"users", "scan_history", "api_usage_log", "username_cache"}
+    if table not in ALLOWED:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Table not allowed")
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(f"SELECT * FROM [{table}] ORDER BY rowid DESC")
+        rows = [dict(r) for r in await cur.fetchall()]
+
+    if not rows:
+        return StreamingResponse(iter([""]), media_type="text/csv")
+
+    # Mask sensitive fields
+    for r in rows:
+        r.pop("password_hash", None)
+        r.pop("result_json", None)
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    buf.seek(0)
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={table}.csv"}
+    )
