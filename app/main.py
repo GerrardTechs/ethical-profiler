@@ -149,11 +149,16 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    # Fix #6: restrict origins — not wildcard "*"
-    allow_origins=["https://*.vercel.app", "http://localhost:8000", "http://127.0.0.1:8000"],
-    allow_credentials=True,
+    # Fix: CORSMiddleware doesn't support wildcard subdomains.
+    # For same-site navigation (browser directly accessing the app), CORS is not
+    # involved at all — cookies are sent automatically. CORS only applies to
+    # cross-origin fetch() calls (JS on domain A fetching domain B).
+    # Setting allow_origins=["*"] is safe here because we use httponly cookies
+    # for auth (not Authorization headers), and CSRF middleware protects mutations.
+    allow_origins=["*"],
+    allow_credentials=False,   # must be False when allow_origins="*"
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

@@ -1,10 +1,13 @@
 """
 routers/auth.py — Login, register, logout.
-Fix #5: cookie max_age=72h so browser close doesn't log out (not a session cookie).
-Fix #6: Set CSRF cookie on login/register. Sanitize inputs.
+Fix defensive→login: cookie flags diperbaiki agar selalu dikirim di Vercel HTTPS.
+Fix EXIT hapus credentials: logout hanya invalidate session di DB, cookie tetap
+  ada tapi expired — user bisa login lagi tanpa re-register.
 """
 import html
+import os
 import re
+import secrets
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Response, HTTPException
@@ -24,8 +27,48 @@ router    = APIRouter(tags=["auth"])
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_\-\.]{3,32}$")
 _EMAIL_RE    = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Cookie helper
+# Key insight:
+#   - Vercel selalu HTTPS  → secure=True, samesite="lax"
+#   - Localhost HTTP       → secure=False, samesite="lax"
+#   - samesite="lax" (bukan "strict") agar cookie dikirim saat navigasi
+#     normal antar halaman (GET request dari link). "strict" memblokir ini
+#     sehingga klik link ke /defensive tidak membawa cookie → dianggap logout.
+# ─────────────────────────────────────────────────────────────────────────────
+_IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
 
-# ── Pydantic models with input validation (#6 XSS) ────────────────────────────
+
+def _cookie_flags() -> dict:
+    """Return cookie flags yang benar untuk environment saat ini."""
+    return dict(
+        httponly=True,
+        samesite="lax",       # WAJIB lax — strict memblokir navigasi lintas halaman
+        max_age=72 * 3600,    # 72 jam — persistent, bukan session cookie
+        secure=_IS_VERCEL,    # True di Vercel (HTTPS), False di localhost
+        path="/",
+    )
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(key="session_token", value=token, **_cookie_flags())
+
+
+def _set_csrf_cookie(response: Response) -> str:
+    token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="csrf_token",
+        value=token,
+        httponly=False,    # JS harus bisa baca
+        samesite="lax",
+        max_age=72 * 3600,
+        secure=_IS_VERCEL,
+        path="/",
+    )
+    return token
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=64)
@@ -33,7 +76,7 @@ class LoginRequest(BaseModel):
 
     @field_validator("username")
     @classmethod
-    def sanitize_username(cls, v: str) -> str:
+    def sanitize(cls, v: str) -> str:
         return html.escape(v.strip())
 
 
@@ -47,7 +90,7 @@ class RegisterRequest(BaseModel):
     def validate_username(cls, v: str) -> str:
         v = v.strip()
         if not _USERNAME_RE.match(v):
-            raise ValueError("Username hanya boleh huruf, angka, underscore, titik, dan strip")
+            raise ValueError("Username hanya huruf, angka, underscore, titik, strip")
         return v
 
     @field_validator("email")
@@ -58,49 +101,11 @@ class RegisterRequest(BaseModel):
             raise ValueError("Format email tidak valid")
         return html.escape(v)
 
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password minimal 8 karakter")
-        return v
-
-
-def _set_session_cookie(response: Response, token: str) -> None:
-    """
-    Fix #5: use max_age (persistent) NOT a session cookie.
-    Session cookies disappear when browser closes — this is why users
-    get logged out on browser close. max_age=72h keeps them logged in.
-    """
-    response.set_cookie(
-        key="session_token",
-        value=token,
-        httponly=True,       # JS cannot read — XSS protection
-        samesite="lax",      # CSRF protection
-        max_age=72 * 3600,   # 72 hours — survives browser close
-        secure=False,        # set True when using HTTPS (Vercel auto-HTTPS)
-        path="/",
-    )
-
-
-def _set_csrf_cookie(response: Response, csrf_token: str) -> None:
-    """Set CSRF token cookie (readable by JS, not httponly)."""
-    import secrets
-    response.set_cookie(
-        key="csrf_token",
-        value=csrf_token or secrets.token_urlsafe(32),
-        httponly=False,      # JS must read it to send as header
-        samesite="strict",
-        max_age=72 * 3600,
-        path="/",
-    )
-
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(request: Request):
-    # Fix #5: if already logged in, go home — not login page
     user = await get_current_user_optional(request)
     if user:
         return RedirectResponse("/", status_code=302)
@@ -122,12 +127,10 @@ async def api_login(payload: LoginRequest, response: Response):
     user = await authenticate_user(payload.username, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Username atau password salah")
+
     token = await create_session(user["id"])
     _set_session_cookie(response, token)
-
-    # Issue fresh CSRF token on login
-    import secrets as _s
-    _set_csrf_cookie(response, _s.token_urlsafe(32))
+    _set_csrf_cookie(response)
 
     return {
         "ok": True,
@@ -149,9 +152,7 @@ async def api_register(payload: RegisterRequest, response: Response):
         )
     token = await create_session(user["id"])
     _set_session_cookie(response, token)
-
-    import secrets as _s
-    _set_csrf_cookie(response, _s.token_urlsafe(32))
+    _set_csrf_cookie(response)
 
     return {"ok": True, "user": user}
 
@@ -159,15 +160,30 @@ async def api_register(payload: RegisterRequest, response: Response):
 @router.post("/api/auth/logout")
 async def api_logout(request: Request, response: Response):
     """
-    Fix #1 #3: This is ONLY called when user explicitly presses the Logout button.
-    Pressing browser Back, Home link, or closing browser does NOT call this.
+    Logout: hapus sesi dari DB (invalidate token), tapi TIDAK menghapus
+    data akun pengguna. User tetap terdaftar dan bisa login lagi kapan saja.
+    
+    Yang dihapus: token sesi aktif (bukan akun, bukan password, bukan history).
+    Cookie dihapus dari browser agar browser tidak mengirim token lama.
     """
     token = request.cookies.get("session_token")
     if token:
+        # Hapus sesi dari DB — token ini tidak bisa dipakai lagi
         await delete_session(token)
-    response.delete_cookie("session_token", path="/")
-    response.delete_cookie("csrf_token", path="/")
-    return {"ok": True}
+
+    # Hapus cookie dari browser
+    # max_age=0 memaksa browser menghapus cookie segera
+    response.set_cookie(
+        key="session_token", value="", max_age=0,
+        httponly=True, samesite="lax",
+        secure=_IS_VERCEL, path="/"
+    )
+    response.set_cookie(
+        key="csrf_token", value="", max_age=0,
+        httponly=False, samesite="lax",
+        secure=_IS_VERCEL, path="/"
+    )
+    return {"ok": True, "message": "Berhasil logout. Data akun tetap tersimpan."}
 
 
 @router.get("/api/auth/me")

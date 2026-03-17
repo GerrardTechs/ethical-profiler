@@ -111,7 +111,7 @@
   <div class="nav-user">
     <span>{{ user.username if user else 'Guest' }}</span>
     <span class="badge-role">{{ user.role if user else 'guest' }}</span>
-    <button class="btn-logout" onclick="logout()">Logout</button>
+    <button class="btn-logout" onclick="doLogout()">Logout</button>
   </div>
 </nav>
 
@@ -203,12 +203,13 @@
     });
   });
 
-  async function logout() {
-    if (!confirm('Yakin ingin keluar?')) return;
+  async function doLogout() {
+    if (!confirm('Keluar dari sesi ini?\nAkun dan data kamu TIDAK dihapus.\nKamu bisa login lagi kapan saja.')) return;
     const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
     await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
     window.location.href = '/login';
   }
+  function logout() { doLogout(); }
 
 function csrfFetch(url, opts = {}) {
     const csrf = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
